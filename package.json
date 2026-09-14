@@ -1,0 +1,21 @@
+{
+  "name": "migalog",
+  "private": true,
+  "version": "0.1.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "pnpm --parallel --filter ./apps/* run dev",
+    "dev:api": "pnpm --filter @migalog/api run dev",
+    "dev:web": "pnpm --filter @migalog/web run dev",
+    "build": "pnpm --filter ./apps/* run build",
+    "db:generate": "pnpm --filter @migalog/api run db:generate",
+    "db:migrate": "pnpm --filter @migalog/api run db:migrate",
+    "db:seed": "pnpm --filter @migalog/api run db:seed",
+    "typecheck": "pnpm -r run typecheck"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3"
+  }
+}
