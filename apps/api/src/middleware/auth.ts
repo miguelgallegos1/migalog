@@ -5,6 +5,7 @@ import { verifyAccessToken } from "../lib/jwt.js";
 export type AppVariables = {
   userId: string;
   tenantId: string | null;
+  clientId: string | null;
   role: Role;
 };
 
@@ -17,6 +18,7 @@ export async function requireAuth(c: Context, next: Next) {
     const claims = await verifyAccessToken(token);
     c.set("userId", claims.sub);
     c.set("tenantId", claims.tenantId);
+    c.set("clientId", claims.clientId);
     c.set("role", claims.role);
     await next();
   } catch {
@@ -40,6 +42,15 @@ export function requireTenant() {
   return async (c: Context, next: Next) => {
     const tenantId = c.get("tenantId") as string | null;
     if (!tenantId) return c.json({ error: "Falta contexto de empresa (tenant)" }, 400);
+    await next();
+  };
+}
+
+/** Exige que el usuario pertenezca a una empresa cliente (todo rol cliente_*). */
+export function requireOwnClient() {
+  return async (c: Context, next: Next) => {
+    const clientId = c.get("clientId") as string | null;
+    if (!clientId) return c.json({ error: "Falta contexto de empresa cliente" }, 400);
     await next();
   };
 }

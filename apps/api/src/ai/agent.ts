@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { and, desc, eq, notInArray } from "drizzle-orm";
 import { db } from "../db/client.js";
-import { users, providers, routes } from "../db/schema.js";
+import { users, routes } from "../db/schema.js";
 import { TERMINAL_ROUTE_STATUSES } from "@migalog/shared";
 import { toolDefinitions, runTool, type ToolContext } from "./tools.js";
 import { getRouteWithStops } from "../lib/route-service.js";
@@ -21,23 +21,24 @@ verificar que el conductor y el vehículo asignados estén libres. Si no hay dis
 pedido es cancelar la ruta, cambiar destino/paradas o reasignar camión, usa escalar_a_humano.
 Responde siempre en español, breve y claro, como un mensaje de WhatsApp.`;
 
+// NOTA: por ahora solo se adaptó al esquema nuevo (users.clientId reemplaza el join por
+// providers.contactUserId) para que compile - la lógica de a quién representa/escala el
+// agente dentro de la nueva jerarquía de roles queda pendiente, a propósito, hasta terminar
+// de definir la estructura de roles completa.
 async function findUserAndActiveRoute(tenantId: string, fromPhone: string) {
   const [user] = await db
     .select()
     .from(users)
-    .where(and(eq(users.tenantId, tenantId), eq(users.phone, fromPhone), eq(users.role, "cliente_proveedor")));
-  if (!user) return null;
-
-  const [provider] = await db.select().from(providers).where(eq(providers.contactUserId, user.id));
-  if (!provider) return null;
+    .where(and(eq(users.tenantId, tenantId), eq(users.phone, fromPhone), eq(users.role, "cliente_solicitante")));
+  if (!user?.clientId) return null;
 
   const [route] = await db
     .select()
     .from(routes)
-    .where(and(eq(routes.tenantId, tenantId), eq(routes.providerId, provider.id), notInArray(routes.status, TERMINAL_ROUTE_STATUSES)))
+    .where(and(eq(routes.tenantId, tenantId), eq(routes.clientId, user.clientId), notInArray(routes.status, TERMINAL_ROUTE_STATUSES)))
     .orderBy(desc(routes.createdAt));
 
-  return { user, provider, route };
+  return { user, route };
 }
 
 export async function handleIncomingWhatsAppMessage(

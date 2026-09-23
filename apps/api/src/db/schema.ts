@@ -14,8 +14,22 @@ import {
  * de Node plano y no sabe mapear las extensiones .js -> .ts de un paquete TS con
  * moduleResolution "Bundler". Deben mantenerse idénticos a packages/shared/src/roles.ts
  * y route-status.ts.
+ *
+ * Jerarquía de 2 niveles: nivel 1 (admin_empresa/coordinador/conductor) pertenece a la
+ * empresa proveedora (el tenant); nivel 2 (cliente_admin/cliente_coordinador/cliente_jefe/
+ * cliente_visualizador/cliente_solicitante) pertenece a una empresa cliente (`clients`).
  */
-export const roleEnum = pgEnum("role", ["super_admin", "admin_empresa", "dispatcher", "conductor", "cliente_proveedor"]);
+export const roleEnum = pgEnum("role", [
+  "super_admin",
+  "admin_empresa",
+  "coordinador",
+  "conductor",
+  "cliente_admin",
+  "cliente_coordinador",
+  "cliente_jefe",
+  "cliente_visualizador",
+  "cliente_solicitante",
+]);
 export const routeStatusEnum = pgEnum("route_status", [
   "CREADO",
   "APROBADO",
@@ -30,6 +44,7 @@ export const routeStatusEnum = pgEnum("route_status", [
 export const stopTypeEnum = pgEnum("stop_type", ["origen", "parada", "destino"]);
 export const stopStatusEnum = pgEnum("stop_status", ["pendiente", "en_curso", "completada", "omitida"]);
 export const actorTypeEnum = pgEnum("actor_type", ["human", "ai_agent"]);
+export const routeTemplateStatusEnum = pgEnum("route_template_status", ["pendiente", "aprobada", "rechazada"]);
 
 export const tenants = pgTable("tenants", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -39,10 +54,23 @@ export const tenants = pgTable("tenants", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-/** super_admin no pertenece a ningún tenant (tenantId null). Todo el resto sí. */
+/** Empresa cliente (nivel 2): la que le contrata transporte a la empresa proveedora (el tenant). */
+export const clients = pgTable("clients", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
+  name: text("name").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * super_admin no pertenece a ningún tenant (tenantId null). Los roles de nivel 1 tienen
+ * tenantId y clientId null. Los roles cliente_* tienen ambos: tenantId (a través de su
+ * empresa cliente) y clientId (qué empresa cliente específica).
+ */
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
   tenantId: uuid("tenant_id").references(() => tenants.id),
+  clientId: uuid("client_id").references(() => clients.id),
   role: roleEnum("role").notNull(),
   name: text("name").notNull(),
   email: text("email").unique(),
@@ -88,11 +116,33 @@ export const vehicles = pgTable("vehicles", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-export const providers = pgTable("providers", {
+/**
+ * Catálogo de rutas frecuentes de la empresa proveedora (tarifario): un atajo, no una
+ * restricción - al crear una solicitud se puede elegir una de acá para autocompletar
+ * origen/destino/precio/tiempo estimado, o seguir cargando una ruta a medida como siempre.
+ * Lo mantiene admin_empresa/coordinador (son quienes conocen sus tiempos y ponen el precio).
+ */
+export const routeTemplates = pgTable("route_templates", {
   id: uuid("id").primaryKey().defaultRandom(),
   tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
-  name: text("name").notNull(),
-  contactUserId: uuid("contact_user_id").references(() => users.id),
+  category: text("category"), // agrupador libre, ej. la ciudad de origen ("CAYAMBE")
+  name: text("name").notNull(), // ej. "ADUANA-CAYAMBE"
+  originLabel: text("origin_label").notNull(),
+  originAddress: text("origin_address").notNull(),
+  originLat: doublePrecision("origin_lat").notNull(),
+  originLng: doublePrecision("origin_lng").notNull(),
+  destinationLabel: text("destination_label").notNull(),
+  destinationAddress: text("destination_address").notNull(),
+  destinationLat: doublePrecision("destination_lat").notNull(),
+  destinationLng: doublePrecision("destination_lng").notNull(),
+  price: integer("price"),
+  estimatedMinutes: integer("estimated_minutes"),
+  // "aprobada" = visible en el selector de la solicitud. Cuando la crea admin_empresa/
+  // coordinador queda aprobada directo (es su tarifario); cuando la PROPONE una empresa
+  // cliente (porque la ruta que necesita no está en la lista) queda "pendiente" hasta que
+  // la empresa proveedora la revisa y fija el precio acordado (aprobar) o la rechaza.
+  status: routeTemplateStatusEnum("status").notNull().default("aprobada"),
+  proposedByClientId: uuid("proposed_by_client_id").references(() => clients.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -100,13 +150,16 @@ export const routes = pgTable("routes", {
   id: uuid("id").primaryKey().defaultRandom(),
   tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
   code: text("code").notNull().unique(),
-  providerId: uuid("provider_id").notNull().references(() => providers.id),
+  clientId: uuid("client_id").notNull().references(() => clients.id),
   driverId: uuid("driver_id").references(() => drivers.id),
   vehicleId: uuid("vehicle_id").references(() => vehicles.id),
   status: routeStatusEnum("status").notNull().default("CREADO"),
   currentStopId: uuid("current_stop_id"),
   hasIncident: boolean("has_incident").notNull().default(false),
   notes: text("notes"),
+  // Cuándo debe arrancar la ruta (lo pide el solicitante al crearla) - distinto de
+  // route_stops.planned_at, que es la hora estimada de cada parada individual.
+  scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -120,6 +173,11 @@ export const routeStops = pgTable("route_stops", {
   address: text("address").notNull(),
   lat: doublePrecision("lat").notNull(),
   lng: doublePrecision("lng").notNull(),
+  // Detalle de carga de esta parada (ej. "8 UNI - Cajas encargos") - opcional, no toda
+  // parada mueve carga (ej. una parada que solo es punto de control).
+  cargoQuantity: integer("cargo_quantity"),
+  cargoUnit: text("cargo_unit"),
+  cargoDescription: text("cargo_description"),
   plannedAt: timestamp("planned_at", { withTimezone: true }),
   arrivedAt: timestamp("arrived_at", { withTimezone: true }),
   departedAt: timestamp("departed_at", { withTimezone: true }),

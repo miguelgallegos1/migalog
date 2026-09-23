@@ -1,9 +1,10 @@
 import { db } from "./client.js";
-import { tenants, users, providers, vehicles, drivers, routes, routeStops, routeStatusHistory, devices } from "./schema.js";
+import { tenants, clients, users, vehicles, drivers, routes, routeStops, routeStatusHistory, devices } from "./schema.js";
 import { hashSecret, randomToken } from "../lib/crypto.js";
 import { generateRouteCode } from "../lib/ids.js";
 import { firstOrThrow } from "../lib/db-helpers.js";
 import { signSetupToken } from "../lib/jwt.js";
+import type { Role } from "@migalog/shared";
 
 async function main() {
   console.log("Sembrando datos demo...");
@@ -25,82 +26,76 @@ async function main() {
       .returning()
   );
 
+  // --- Nivel 1: empresa proveedora (el tenant) ---
   const adminEmpresa = firstOrThrow(
     await db
       .insert(users)
-      .values({
-        tenantId: tenant.id,
-        role: "admin_empresa",
-        name: "Admin Demo",
-        email: "admin@demo.migalog.dev",
-        passwordHash: await hashSecret("Demo1234!"),
-      })
+      .values({ tenantId: tenant.id, role: "admin_empresa", name: "Admin Demo", email: "admin@demo.migalog.dev", passwordHash: await hashSecret("Demo1234!") })
       .returning()
   );
 
-  const dispatcher = firstOrThrow(
+  const coordinador = firstOrThrow(
     await db
       .insert(users)
-      .values({
-        tenantId: tenant.id,
-        role: "dispatcher",
-        name: "Despachador Demo",
-        email: "dispatcher@demo.migalog.dev",
-        passwordHash: await hashSecret("Demo1234!"),
-      })
+      .values({ tenantId: tenant.id, role: "coordinador", name: "Coordinador Demo", email: "coordinador@demo.migalog.dev", passwordHash: await hashSecret("Demo1234!") })
       .returning()
   );
 
   const conductorUser = firstOrThrow(
     await db
       .insert(users)
-      .values({
-        tenantId: tenant.id,
-        role: "conductor",
-        name: "Conductor Demo",
-        phone: "+50588880001",
-        pinHash: await hashSecret("123456"),
-      })
+      .values({ tenantId: tenant.id, role: "conductor", name: "Conductor Demo", phone: "+50588880001", pinHash: await hashSecret("123456") })
+      .returning()
+  );
+
+  // --- Nivel 2: empresa cliente (varios usuarios, cada uno con su propio rol) ---
+  const client = firstOrThrow(
+    await db.insert(clients).values({ tenantId: tenant.id, name: "Comercial El Sol" }).returning()
+  );
+
+  const clienteAdmin = firstOrThrow(
+    await db
+      .insert(users)
+      .values({ tenantId: tenant.id, clientId: client.id, role: "cliente_admin", name: "Admin Cliente Demo", email: "admin@cliente-demo.dev", passwordHash: await hashSecret("Demo1234!") })
+      .returning()
+  );
+
+  const clienteCoordinador = firstOrThrow(
+    await db
+      .insert(users)
+      .values({ tenantId: tenant.id, clientId: client.id, role: "cliente_coordinador", name: "Coordinador Cliente Demo", email: "coordinador@cliente-demo.dev", passwordHash: await hashSecret("Demo1234!") })
+      .returning()
+  );
+
+  const clienteJefe = firstOrThrow(
+    await db
+      .insert(users)
+      .values({ tenantId: tenant.id, clientId: client.id, role: "cliente_jefe", name: "Jefe Cliente Demo", email: "jefe@cliente-demo.dev", passwordHash: await hashSecret("Demo1234!") })
+      .returning()
+  );
+
+  const clienteVisualizador = firstOrThrow(
+    await db
+      .insert(users)
+      .values({ tenantId: tenant.id, clientId: client.id, role: "cliente_visualizador", name: "Visualizador Cliente Demo", email: "visualizador@cliente-demo.dev", passwordHash: await hashSecret("Demo1234!") })
       .returning()
   );
 
   const solicitanteUser = firstOrThrow(
     await db
       .insert(users)
-      .values({
-        tenantId: tenant.id,
-        role: "cliente_proveedor",
-        name: "Solicitante Demo",
-        phone: "+50588880002",
-        pinHash: await hashSecret("654321"),
-      })
-      .returning()
-  );
-
-  const provider = firstOrThrow(
-    await db
-      .insert(providers)
-      .values({ tenantId: tenant.id, name: "Comercial El Sol", contactUserId: solicitanteUser.id })
+      .values({ tenantId: tenant.id, clientId: client.id, role: "cliente_solicitante", name: "Solicitante Demo", phone: "+50588880002", pinHash: await hashSecret("654321") })
       .returning()
   );
 
   await db.insert(vehicles).values({ tenantId: tenant.id, plate: "M-123456", capacityKg: 5000 }).returning();
 
-  await db
-    .insert(drivers)
-    .values({ tenantId: tenant.id, userId: conductorUser.id, licenseNumber: "LIC-0001" })
-    .returning();
+  await db.insert(drivers).values({ tenantId: tenant.id, userId: conductorUser.id, licenseNumber: "LIC-0001" }).returning();
 
   const route = firstOrThrow(
     await db
       .insert(routes)
-      .values({
-        tenantId: tenant.id,
-        code: generateRouteCode(),
-        providerId: provider.id,
-        status: "CREADO",
-        notes: "Ruta de ejemplo generada por el seed",
-      })
+      .values({ tenantId: tenant.id, code: generateRouteCode(), clientId: client.id, status: "CREADO", notes: "Ruta de ejemplo generada por el seed" })
       .returning()
   );
 
@@ -142,15 +137,25 @@ async function main() {
   const conductorSetupToken = await signSetupToken(conductorUser.id);
   const solicitanteSetupToken = await signSetupToken(solicitanteUser.id);
 
-  console.log("\nListo. Credenciales de prueba:\n");
-  console.log(`Tenant: ${tenant.name} (slug: ${tenant.slug})`);
-  console.log(`super_admin       -> email: ${superAdmin.email}      password: Demo1234!`);
-  console.log(`admin_empresa     -> email: ${adminEmpresa.email}    password: Demo1234!`);
-  console.log(`dispatcher        -> email: ${dispatcher.email}      password: Demo1234!`);
+  const passwordUsers: { role: Role; email: string | null }[] = [
+    { role: superAdmin.role, email: superAdmin.email },
+    { role: adminEmpresa.role, email: adminEmpresa.email },
+    { role: coordinador.role, email: coordinador.email },
+    { role: clienteAdmin.role, email: clienteAdmin.email },
+    { role: clienteCoordinador.role, email: clienteCoordinador.email },
+    { role: clienteJefe.role, email: clienteJefe.email },
+    { role: clienteVisualizador.role, email: clienteVisualizador.email },
+  ];
+
+  console.log("\nListo. Credenciales de prueba (todas las de password: Demo1234!):\n");
+  console.log(`Tenant: ${tenant.name} (slug: ${tenant.slug}) | Empresa cliente: ${client.name}\n`);
+  for (const u of passwordUsers) {
+    console.log(`${u.role.padEnd(22)} -> email: ${u.email}`);
+  }
   console.log(`\nconductor (API directo)          -> POST /auth/login-pin { deviceId: "${conductorDevice.id}", pin: "123456" }`);
-  console.log(`cliente_proveedor (API directo)  -> POST /auth/login-pin { deviceId: "${solicitanteDevice.id}", pin: "654321" }`);
+  console.log(`cliente_solicitante (API directo) -> POST /auth/login-pin { deviceId: "${solicitanteDevice.id}", pin: "654321" }`);
   console.log(`\nconductor (navegador)            -> pestaña PIN -> "Configurar acceso" -> código: ${conductorSetupToken}`);
-  console.log(`cliente_proveedor (navegador)    -> pestaña PIN -> "Configurar acceso" -> código: ${solicitanteSetupToken}`);
+  console.log(`cliente_solicitante (navegador)  -> pestaña PIN -> "Configurar acceso" -> código: ${solicitanteSetupToken}`);
   console.log(`\nRuta demo: ${route.code} (estado CREADO, 4 paradas)`);
 }
 

@@ -14,10 +14,16 @@ const MenuIcon = () => (
 // Nombre para mostrar de cada rol, chico y debajo del nombre de la app.
 export const ROLE_LABELS: Record<string, string> = {
   super_admin: "Dueño de la plataforma",
-  admin_empresa: "Administrador",
-  dispatcher: "Despachador",
+  // Nivel 1 - empresa proveedora
+  admin_empresa: "Admin. empresa proveedora",
+  coordinador: "Coordinador (proveedora)",
   conductor: "Conductor",
-  cliente_proveedor: "Solicitante",
+  // Nivel 2 - empresa cliente
+  cliente_admin: "Admin. empresa cliente",
+  cliente_coordinador: "Coordinador (cliente)",
+  cliente_jefe: "Jefe (reportes)",
+  cliente_visualizador: "Visualizador",
+  cliente_solicitante: "Solicitante",
 };
 
 function initialsOf(name: string): string {

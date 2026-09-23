@@ -1,8 +1,8 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import { usesPassword, usesPin, inviteUserSchema, loginPasswordSchema, loginPinSchema } from "@migalog/shared";
+import { usesPassword, usesPin, isClientRole, inviteUserSchema, loginPasswordSchema, loginPinSchema } from "@migalog/shared";
 import { db } from "../db/client.js";
-import { users, devices } from "../db/schema.js";
+import { users, devices, clients } from "../db/schema.js";
 import { eq, and } from "drizzle-orm";
 import { hashSecret, verifySecret, randomToken } from "../lib/crypto.js";
 import { firstOrThrow } from "../lib/db-helpers.js";
@@ -14,20 +14,47 @@ const LOCK_MINUTES = 15;
 
 export const authRoutes = new Hono<{ Variables: AppVariables }>();
 
-/** admin_empresa (o super_admin) invita a un usuario dentro de su tenant. */
+/**
+ * Invita a un usuario dentro del tenant actual.
+ * - admin_empresa/super_admin pueden invitar cualquier rol; para un rol cliente_* deben
+ *   indicar a qué empresa cliente (clientId) pertenece.
+ * - cliente_admin solo puede invitar roles cliente_* (no roles de nivel 1), y el usuario
+ *   invitado hereda automáticamente SU MISMA empresa cliente - no puede invitar para otra.
+ */
 authRoutes.post(
   "/invite",
   requireAuth,
-  requireRole("admin_empresa", "super_admin"),
+  requireRole("admin_empresa", "super_admin", "cliente_admin"),
   async (c) => {
     const body = inviteUserSchema.parse(await c.req.json());
     const tenantId = c.get("tenantId");
+    const actorRole = c.get("role");
+    const actorClientId = c.get("clientId");
+
+    if (body.role === "super_admin" && actorRole !== "super_admin") {
+      return c.json({ error: "Solo super_admin puede crear otro super_admin" }, 403);
+    }
+
+    let clientId: string | null = null;
+
+    if (actorRole === "cliente_admin") {
+      if (!isClientRole(body.role)) {
+        return c.json({ error: "Un admin de empresa cliente solo puede invitar roles cliente_*" }, 403);
+      }
+      clientId = actorClientId;
+    } else if (isClientRole(body.role)) {
+      if (!body.clientId) return c.json({ error: "Falta indicar la empresa cliente (clientId)" }, 400);
+      const [client] = await db.select().from(clients).where(and(eq(clients.id, body.clientId), eq(clients.tenantId, tenantId!)));
+      if (!client) return c.json({ error: "Empresa cliente no encontrada" }, 404);
+      clientId = client.id;
+    }
 
     const user = firstOrThrow(
       await db
         .insert(users)
         .values({
           tenantId,
+          clientId,
           role: body.role,
           name: body.name,
           email: body.email,
@@ -91,8 +118,8 @@ authRoutes.post("/login-password", async (c) => {
   const valid = await verifySecret(user.passwordHash, password);
   if (!valid) return c.json({ error: "Credenciales inválidas" }, 401);
 
-  const accessToken = await signAccessToken({ sub: user.id, tenantId: user.tenantId, role: user.role });
-  return c.json({ accessToken, user: { id: user.id, name: user.name, role: user.role, tenantId: user.tenantId } });
+  const accessToken = await signAccessToken({ sub: user.id, tenantId: user.tenantId, clientId: user.clientId, role: user.role });
+  return c.json({ accessToken, user: { id: user.id, name: user.name, role: user.role, tenantId: user.tenantId, clientId: user.clientId } });
 });
 
 authRoutes.post("/login-pin", async (c) => {
@@ -117,8 +144,8 @@ authRoutes.post("/login-pin", async (c) => {
   }
 
   await db.update(devices).set({ failedAttempts: 0, lockedUntil: null }).where(eq(devices.id, deviceId));
-  const accessToken = await signAccessToken({ sub: user.id, tenantId: user.tenantId, role: user.role });
-  return c.json({ accessToken, user: { id: user.id, name: user.name, role: user.role, tenantId: user.tenantId } });
+  const accessToken = await signAccessToken({ sub: user.id, tenantId: user.tenantId, clientId: user.clientId, role: user.role });
+  return c.json({ accessToken, user: { id: user.id, name: user.name, role: user.role, tenantId: user.tenantId, clientId: user.clientId } });
 });
 
 const refreshSchema = z.object({ deviceId: z.string().uuid(), deviceRefreshToken: z.string() });
@@ -141,8 +168,8 @@ authRoutes.post("/session/refresh", async (c) => {
   const [user] = await db.select().from(users).where(eq(users.id, device.userId));
   if (!user || !user.active) return c.json({ error: "Usuario inactivo" }, 401);
 
-  const accessToken = await signAccessToken({ sub: user.id, tenantId: user.tenantId, role: user.role });
-  return c.json({ accessToken, user: { id: user.id, name: user.name, role: user.role, tenantId: user.tenantId } });
+  const accessToken = await signAccessToken({ sub: user.id, tenantId: user.tenantId, clientId: user.clientId, role: user.role });
+  return c.json({ accessToken, user: { id: user.id, name: user.name, role: user.role, tenantId: user.tenantId, clientId: user.clientId } });
 });
 
 /**

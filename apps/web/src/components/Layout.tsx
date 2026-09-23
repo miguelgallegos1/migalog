@@ -3,6 +3,7 @@ import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuthStore } from "../store/auth";
 import { Header, ROLE_LABELS } from "./Header";
 import { Logo } from "./Logo";
+import type { Role } from "@migalog/shared";
 
 const LogoutIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
@@ -10,6 +11,82 @@ const LogoutIcon = () => (
     <path d="M16 17l5-5-5-5M21 12H9" />
   </svg>
 );
+const ChevronIcon = ({ open }: { open: boolean }) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-90" : ""}`}>
+    <path d="M9 6l6 6-6 6" />
+  </svg>
+);
+
+type NavItem = { to: string; label: string; roles: Role[] };
+type NavGroup = { label: string; roles: Role[]; items: NavItem[] };
+
+const NIVEL1_OPS: Role[] = ["admin_empresa", "coordinador", "super_admin"];
+const NIVEL2_ALL: Role[] = ["cliente_admin", "cliente_coordinador", "cliente_jefe", "cliente_visualizador", "cliente_solicitante"];
+
+// Ítems de siempre, sin agrupar - relevantes para todo el mundo independientemente de su nivel.
+const TOP_LEVEL_LINKS: NavItem[] = [
+  { to: "/", label: "Panel de control", roles: [...NIVEL1_OPS, "conductor", ...NIVEL2_ALL] },
+  { to: "/rutas/nueva", label: "Nueva solicitud", roles: ["cliente_admin", "cliente_coordinador", "cliente_solicitante", "admin_empresa", "super_admin"] },
+  { to: "/historial", label: "Historial", roles: [...NIVEL1_OPS, "cliente_admin", "cliente_coordinador", "cliente_jefe", "cliente_visualizador"] },
+];
+
+/**
+ * Menú en cascada de 3 grupos, uno por nivel de la jerarquía (ver plan de roles): quien
+ * tiene visibilidad sobre varios niveles (típicamente super_admin) ve los 3; admin_empresa
+ * solo ve "Empresas proveedoras"; cliente_admin solo ve "Empresas cliente". Un grupo sin
+ * ítems visibles para el rol actual directamente no se muestra.
+ */
+const NAV_GROUPS: NavGroup[] = [
+  {
+    // Distinto de "Administración" (el grupo de abajo) a propósito: este es nivel 0
+    // (plataforma), el de abajo es nivel 1 (la propia empresa) - un super_admin ve los
+    // dos juntos, así que necesitan etiquetas que no se confundan entre sí.
+    label: "Plataforma",
+    roles: ["super_admin"],
+    items: [{ to: "/empresas", label: "Crear empresa proveedora", roles: ["super_admin"] }],
+  },
+  {
+    // "Administración" y no "Empresas proveedoras": quien lo mira ES la empresa
+    // proveedora, no tiene sentido que se autodenomine así en su propio menú.
+    label: "Administración",
+    roles: NIVEL1_OPS,
+    items: [
+      { to: "/usuarios", label: "Usuarios", roles: ["admin_empresa", "super_admin"] },
+      { to: "/conductores", label: "Conductores", roles: ["admin_empresa", "super_admin"] },
+      { to: "/camiones", label: "Camiones", roles: ["admin_empresa", "super_admin"] },
+      { to: "/catalogo", label: "Catálogo de rutas", roles: NIVEL1_OPS },
+    ],
+  },
+  {
+    label: "Empresas cliente",
+    roles: ["admin_empresa", "super_admin", "cliente_admin", "cliente_coordinador", "cliente_solicitante"],
+    items: [
+      { to: "/clientes", label: "Crear empresa cliente", roles: ["admin_empresa", "super_admin"] },
+      { to: "/rutas/nueva", label: "Nueva solicitud", roles: ["admin_empresa", "super_admin"] },
+      { to: "/usuarios", label: "Coordinador / usuarios", roles: ["admin_empresa", "super_admin"] },
+      { to: "/usuarios", label: "Mi equipo", roles: ["cliente_admin"] },
+      { to: "/catalogo", label: "Catálogo de rutas", roles: ["cliente_admin", "cliente_coordinador", "cliente_solicitante"] },
+    ],
+  },
+];
+
+function NavLinkItem({ item, onClick }: { item: NavItem; onClick: () => void }) {
+  return (
+    <NavLink
+      to={item.to}
+      end={item.to === "/"}
+      onClick={onClick}
+      className={({ isActive }) =>
+        // El item activo usa el color de marca (amarillo) para que sea obvio dónde está parado el usuario.
+        `rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+          isActive ? "bg-amber-400 text-slate-900" : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+        }`
+      }
+    >
+      {item.label}
+    </NavLink>
+  );
+}
 
 /**
  * Layout general de toda la app autenticada: header superior de ancho completo (marca +
@@ -23,29 +100,29 @@ export function Layout() {
   const logout = useAuthStore((s) => s.logout);
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
 
   function handleLogout() {
     logout();
     navigate("/login");
   }
 
-  const links: { to: string; label: string; roles: string[] }[] = [
-    // "Panel de control" es visible para todos los roles (no solo despacho): es la única
-    // pantalla desde la que un conductor o un solicitante pueden llegar al detalle de su
-    // ruta y marcar paradas / ver el estado - sin este link quedaban sin ningún lugar a
-    // dónde navegar después de loguearse.
-    { to: "/", label: "Panel de control", roles: ["admin_empresa", "dispatcher", "super_admin", "conductor", "cliente_proveedor"] },
-    { to: "/rutas/nueva", label: "Nueva solicitud", roles: ["cliente_proveedor", "admin_empresa", "super_admin"] },
-    { to: "/historial", label: "Historial", roles: ["admin_empresa", "dispatcher", "super_admin"] },
-    { to: "/proveedores", label: "Proveedores", roles: ["admin_empresa", "super_admin"] },
-    { to: "/conductores", label: "Conductores", roles: ["admin_empresa", "super_admin"] },
-    { to: "/camiones", label: "Camiones", roles: ["admin_empresa", "super_admin"] },
-    { to: "/usuarios", label: "Usuarios", roles: ["admin_empresa", "super_admin"] },
-    { to: "/empresas", label: "Empresas (tenants)", roles: ["super_admin"] },
-  ];
+  function toggleGroup(label: string) {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(label)) next.delete(label);
+      else next.add(label);
+      return next;
+    });
+  }
 
-  // Solo se muestran los links permitidos para el rol del usuario logueado.
-  const visibleLinks = links.filter((l) => user && l.roles.includes(user.role));
+  const role = user?.role;
+  const topLevelLinks = role ? TOP_LEVEL_LINKS.filter((l) => l.roles.includes(role)) : [];
+  const visibleGroups = role
+    ? NAV_GROUPS.map((g) => ({ ...g, items: g.items.filter((i) => i.roles.includes(role)) })).filter(
+        (g) => g.roles.includes(role) && g.items.length > 0
+      )
+    : [];
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-50 dark:bg-slate-950">
@@ -74,31 +151,37 @@ export function Layout() {
             </div>
           )}
 
-          <nav className="flex flex-col gap-1">
-            {visibleLinks.map((link) => (
-              <NavLink
-                key={link.to}
-                to={link.to}
-                end={link.to === "/"}
-                onClick={() => setMenuOpen(false)}
-                className={({ isActive }) =>
-                  // El item activo usa el color de marca (amarillo) para que sea obvio dónde
-                  // está parado el usuario.
-                  `rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                    isActive
-                      ? "bg-amber-400 text-slate-900"
-                      : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
-                  }`
-                }
-              >
-                {link.label}
-              </NavLink>
+          <nav className="flex flex-1 flex-col gap-1 overflow-y-auto">
+            {topLevelLinks.map((item) => (
+              <NavLinkItem key={item.to} item={item} onClick={() => setMenuOpen(false)} />
             ))}
+
+            {visibleGroups.map((group) => {
+              const isOpen = !collapsedGroups.has(group.label);
+              return (
+                <div key={group.label} className="mt-2">
+                  <button
+                    onClick={() => toggleGroup(group.label)}
+                    className="flex w-full items-center justify-between rounded-md px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500 hover:bg-slate-100 dark:text-slate-500 dark:hover:bg-slate-800"
+                  >
+                    {group.label}
+                    <ChevronIcon open={isOpen} />
+                  </button>
+                  {isOpen && (
+                    <div className="mt-1 flex flex-col gap-1 border-l border-slate-200 pl-3 dark:border-slate-800">
+                      {group.items.map((item) => (
+                        <NavLinkItem key={`${group.label}-${item.to}-${item.label}`} item={item} onClick={() => setMenuOpen(false)} />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </nav>
 
           <button
             onClick={handleLogout}
-            className="mt-auto flex items-center justify-center gap-2 rounded-md border border-slate-200 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 dark:border-slate-800 dark:text-red-400 dark:hover:bg-red-950/40"
+            className="mt-4 flex items-center justify-center gap-2 rounded-md border border-slate-200 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 dark:border-slate-800 dark:text-red-400 dark:hover:bg-red-950/40"
           >
             <LogoutIcon />
             Cerrar sesión

@@ -2,33 +2,63 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "../lib/api";
 import { Button } from "../components/Button";
+import { useAuthStore } from "../store/auth";
+import { isClientRole, usesPassword as roleUsesPassword } from "@migalog/shared";
 import type { Role } from "@migalog/shared";
 
 type UserRow = { id: string; name: string; role: Role; email: string | null; phone: string | null; active: boolean };
+type ClientCompany = { id: string; name: string };
 
-// admin_empresa/dispatcher usan email+password; conductor/cliente_proveedor usan PIN por
+// admin_empresa/coordinador usan email+password; conductor/cliente_solicitante usan PIN por
 // celular, así que ahí pedimos teléfono en vez de email (ver usesPassword más abajo).
-const ROLE_OPTIONS: { value: Role; label: string }[] = [
+const NIVEL1_OPTIONS: { value: Role; label: string }[] = [
   { value: "admin_empresa", label: "Admin. empresa" },
-  { value: "dispatcher", label: "Despachador" },
+  { value: "coordinador", label: "Coordinador" },
   { value: "conductor", label: "Conductor (PIN)" },
-  { value: "cliente_proveedor", label: "Solicitante (PIN)" },
+];
+const CLIENT_OPTIONS: { value: Role; label: string }[] = [
+  { value: "cliente_admin", label: "Admin. empresa cliente" },
+  { value: "cliente_coordinador", label: "Coordinador de cliente" },
+  { value: "cliente_jefe", label: "Jefe (reportes)" },
+  { value: "cliente_visualizador", label: "Visualizador" },
+  { value: "cliente_solicitante", label: "Solicitante (PIN)" },
 ];
 
-/** Invitar usuarios dentro del tenant actual (admin_empresa) y ver el listado existente. */
+/**
+ * Invitar usuarios y ver el listado existente. Esta misma pantalla sirve dos propósitos
+ * según quién la mira (el backend ya filtra/valida esto en /users y /auth/invite):
+ * - admin_empresa/super_admin: gestionan TODO el tenant (nivel 1 + todas las empresas cliente).
+ * - cliente_admin: gestiona solo el equipo de SU PROPIA empresa cliente (roles cliente_*),
+ *   sin elegir empresa - queda implícita.
+ */
 export default function Users() {
+  const viewerRole = useAuthStore((s) => s.user?.role);
+  const isClientAdmin = viewerRole === "cliente_admin";
   const queryClient = useQueryClient();
   const [name, setName] = useState("");
-  const [role, setRole] = useState<Role>("dispatcher");
+  const [role, setRole] = useState<Role>(isClientAdmin ? "cliente_solicitante" : "coordinador");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [targetClientId, setTargetClientId] = useState("");
   const [lastInvite, setLastInvite] = useState<{ setupToken: string; setupMethod: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const { data: users, isLoading } = useQuery({ queryKey: ["users"], queryFn: () => api.get<UserRow[]>("/users") });
+  const { data: clientCompanies } = useQuery({
+    queryKey: ["clients"],
+    queryFn: () => api.get<ClientCompany[]>("/clients"),
+    enabled: !isClientAdmin,
+  });
 
   const invite = useMutation({
-    mutationFn: () => api.post<{ setupToken: string; setupMethod: string }>("/auth/invite", { name, role, email: email || undefined, phone: phone || undefined }),
+    mutationFn: () =>
+      api.post<{ setupToken: string; setupMethod: string }>("/auth/invite", {
+        name,
+        role,
+        email: email || undefined,
+        phone: phone || undefined,
+        clientId: !isClientAdmin && isClientRole(role) ? targetClientId : undefined,
+      }),
     onSuccess: (res) => {
       setLastInvite(res);
       setError(null);
@@ -40,12 +70,14 @@ export default function Users() {
     onError: (err) => setError(err instanceof ApiError ? err.message : "No se pudo invitar"),
   });
 
-  const usesPassword = role === "admin_empresa" || role === "dispatcher";
+  const usesPassword = roleUsesPassword(role);
+  const roleOptions = isClientAdmin ? CLIENT_OPTIONS : [...NIVEL1_OPTIONS, ...CLIENT_OPTIONS];
+  const needsClientPicker = !isClientAdmin && isClientRole(role);
   const inputClass = "rounded-md border border-slate-300 bg-slate-50 px-2 py-1.5 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100";
 
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="text-xl font-bold text-slate-900 dark:text-white">Usuarios</h1>
+      <h1 className="text-xl font-bold text-slate-900 dark:text-white">{isClientAdmin ? "Mi equipo" : "Usuarios"}</h1>
 
       <form
         onSubmit={(e) => {
@@ -61,11 +93,22 @@ export default function Users() {
         <div className="flex flex-col gap-1">
           <label className="text-xs text-slate-500 dark:text-slate-400">Rol</label>
           <select value={role} onChange={(e) => setRole(e.target.value as Role)} className={inputClass}>
-            {ROLE_OPTIONS.map((r) => (
+            {roleOptions.map((r) => (
               <option key={r.value} value={r.value}>{r.label}</option>
             ))}
           </select>
         </div>
+        {needsClientPicker && (
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-slate-500 dark:text-slate-400">Empresa cliente</label>
+            <select value={targetClientId} onChange={(e) => setTargetClientId(e.target.value)} required className={inputClass}>
+              <option value="">Seleccionar...</option>
+              {clientCompanies?.map((cc) => (
+                <option key={cc.id} value={cc.id}>{cc.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
         {usesPassword ? (
           <div className="flex flex-col gap-1">
             <label className="text-xs text-slate-500 dark:text-slate-400">Email</label>

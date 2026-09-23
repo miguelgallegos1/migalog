@@ -3,40 +3,34 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "../lib/api";
 import { Button } from "../components/Button";
 
-type Tenant = { id: string; name: string; slug: string; active: boolean };
+type ClientCompany = { id: string; name: string };
 
-/** Pantalla exclusiva de super_admin: alta de nuevas empresas (tenants) y activar/desactivar las existentes. */
-export default function Tenants() {
+/**
+ * Empresas cliente (nivel 2): igual que crear un tenant, acá se crea la empresa Y su
+ * primer cliente_admin en un solo paso - ninguna empresa debería quedar sin alguien que
+ * pueda administrarla (invitar a su equipo, aprobar sus solicitudes).
+ */
+export default function Clients() {
   const queryClient = useQueryClient();
   const [name, setName] = useState("");
-  const [slug, setSlug] = useState("");
   const [adminName, setAdminName] = useState("");
   const [adminEmail, setAdminEmail] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [lastSetupToken, setLastSetupToken] = useState<string | null>(null);
 
-  const { data: tenants, isLoading } = useQuery({ queryKey: ["tenants"], queryFn: () => api.get<Tenant[]>("/tenants") });
+  const { data: clients, isLoading } = useQuery({ queryKey: ["clients"], queryFn: () => api.get<ClientCompany[]>("/clients") });
 
   const create = useMutation({
-    // El backend crea el tenant Y su primer admin_empresa en un solo paso, devolviendo el
-    // setupToken de una sola vez - acá lo mostramos para poder probar sin tener email real
-    // conectado (en producción se lo mandaría al admin por correo, no se vería en pantalla).
-    mutationFn: () => api.post<{ setupToken: string }>("/tenants", { name, slug, adminName, adminEmail }),
+    mutationFn: () => api.post<{ setupToken: string }>("/clients", { name, adminName, adminEmail }),
     onSuccess: (res) => {
       setLastSetupToken(res.setupToken);
       setError(null);
       setName("");
-      setSlug("");
       setAdminName("");
       setAdminEmail("");
-      queryClient.invalidateQueries({ queryKey: ["tenants"] });
+      queryClient.invalidateQueries({ queryKey: ["clients"] });
     },
-    onError: (err) => setError(err instanceof ApiError ? err.message : "No se pudo crear la empresa"),
-  });
-
-  const toggleActive = useMutation({
-    mutationFn: ({ id, active }: { id: string; active: boolean }) => api.patch(`/tenants/${id}/active`, { active }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["tenants"] }),
+    onError: (err) => setError(err instanceof ApiError ? err.message : "No se pudo crear la empresa cliente"),
   });
 
   const inputClass = "rounded-md border border-slate-300 bg-slate-50 px-2 py-1.5 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100";
@@ -44,9 +38,9 @@ export default function Tenants() {
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h1 className="text-xl font-bold text-slate-900 dark:text-white">Empresas proveedoras</h1>
+        <h1 className="text-xl font-bold text-slate-900 dark:text-white">Empresas cliente</h1>
         <p className="text-sm text-slate-500 dark:text-slate-400">
-          Como dueño de la plataforma, acá creás las <strong>empresas proveedoras</strong> (empresas de transporte) que van a usar MigaLog. Cada una nace con su propio administrador.
+          Como empresa proveedora, acá creás las <strong>empresas cliente</strong> que te contratan transporte a vos. Cada una nace con su propio administrador (<code className="rounded bg-slate-100 px-1 dark:bg-slate-800">cliente_admin</code>).
         </p>
       </div>
 
@@ -58,12 +52,8 @@ export default function Tenants() {
         className="flex flex-wrap items-end gap-2 rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900/60"
       >
         <div className="flex flex-col gap-1">
-          <label className="text-xs text-slate-500 dark:text-slate-400">Nombre de la empresa</label>
+          <label className="text-xs text-slate-500 dark:text-slate-400">Nombre de la empresa cliente</label>
           <input value={name} onChange={(e) => setName(e.target.value)} required className={inputClass} />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-slate-500 dark:text-slate-400">Slug</label>
-          <input value={slug} onChange={(e) => setSlug(e.target.value)} required placeholder="mi-empresa" className={inputClass} />
         </div>
         <div className="flex flex-col gap-1">
           <label className="text-xs text-slate-500 dark:text-slate-400">Nombre del admin</label>
@@ -74,14 +64,14 @@ export default function Tenants() {
           <input type="email" value={adminEmail} onChange={(e) => setAdminEmail(e.target.value)} required className={inputClass} />
         </div>
         <Button type="submit" disabled={create.isPending}>
-          Crear empresa
+          Crear empresa cliente
         </Button>
       </form>
 
       {error && <p className="text-sm text-red-500 dark:text-red-400">{error}</p>}
       {lastSetupToken && (
         <div className="rounded-lg bg-slate-100 p-3 text-xs text-slate-700 dark:bg-slate-800/70 dark:text-slate-300">
-          Empresa creada. Token de configuración de contraseña para el admin (en producción va por email):
+          Empresa cliente creada junto con su cliente_admin. Token de configuración de contraseña (en producción va por email):
           <div className="mt-1 break-all rounded bg-white p-2 font-mono dark:bg-slate-900">{lastSetupToken}</div>
         </div>
       )}
@@ -89,30 +79,19 @@ export default function Tenants() {
       <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900/60">
         {isLoading ? (
           <p className="p-4 text-sm text-slate-500 dark:text-slate-400">Cargando...</p>
+        ) : !clients || clients.length === 0 ? (
+          <p className="p-4 text-sm text-slate-500 dark:text-slate-400">Sin empresas cliente todavía.</p>
         ) : (
           <table className="w-full text-left text-sm">
             <thead className="border-b border-slate-200 text-xs uppercase text-slate-500 dark:border-slate-800 dark:text-slate-400">
               <tr>
                 <th className="px-4 py-2 font-medium">Nombre</th>
-                <th className="px-4 py-2 font-medium">Slug</th>
-                <th className="px-4 py-2 font-medium">Activa</th>
-                <th className="px-4 py-2 font-medium"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-              {tenants?.map((t) => (
-                <tr key={t.id}>
-                  <td className="px-4 py-2 text-slate-700 dark:text-slate-300">{t.name}</td>
-                  <td className="px-4 py-2 font-mono text-slate-500 dark:text-slate-400">{t.slug}</td>
-                  <td className="px-4 py-2 text-slate-700 dark:text-slate-300">{t.active ? "Sí" : "No"}</td>
-                  <td className="px-4 py-2">
-                    <button
-                      onClick={() => toggleActive.mutate({ id: t.id, active: !t.active })}
-                      className="text-xs font-semibold text-amber-600 hover:text-amber-500 dark:text-amber-400 dark:hover:text-amber-300"
-                    >
-                      {t.active ? "Desactivar" : "Activar"}
-                    </button>
-                  </td>
+              {clients.map((c) => (
+                <tr key={c.id}>
+                  <td className="px-4 py-2 text-slate-700 dark:text-slate-300">{c.name}</td>
                 </tr>
               ))}
             </tbody>

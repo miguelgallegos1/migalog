@@ -7,6 +7,7 @@ export type SessionUser = {
   name: string;
   role: Role;
   tenantId: string | null;
+  clientId: string | null;
 };
 
 type AuthState = {

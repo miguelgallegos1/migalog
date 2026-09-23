@@ -6,7 +6,8 @@ import ControlCenter from "./pages/ControlCenter";
 import RouteDetail from "./pages/RouteDetail";
 import NewRouteRequest from "./pages/NewRouteRequest";
 import History from "./pages/History";
-import Providers from "./pages/Providers";
+import Clients from "./pages/Clients";
+import RouteCatalog from "./pages/RouteCatalog";
 import Drivers from "./pages/Drivers";
 import Vehicles from "./pages/Vehicles";
 import Users from "./pages/Users";
@@ -23,7 +24,8 @@ export default function App() {
           <Route path="/rutas/nueva" element={<NewRouteRequest />} />
           <Route path="/rutas/:id" element={<RouteDetail />} />
           <Route path="/historial" element={<History />} />
-          <Route path="/proveedores" element={<Providers />} />
+          <Route path="/clientes" element={<Clients />} />
+          <Route path="/catalogo" element={<RouteCatalog />} />
           <Route path="/conductores" element={<Drivers />} />
           <Route path="/camiones" element={<Vehicles />} />
           <Route path="/usuarios" element={<Users />} />

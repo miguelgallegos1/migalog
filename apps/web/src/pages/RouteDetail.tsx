@@ -47,17 +47,18 @@ export default function RouteDetail() {
     enabled: !!id,
   });
 
-  // Los combos de conductor/vehículo solo hacen falta para roles que pueden despachar -
-  // evitamos el fetch de más para conductor/cliente_proveedor con `enabled`.
+  // Los combos de conductor/vehículo solo hacen falta para roles que pueden despachar
+  // (nivel 1) - evitamos el fetch de más para el resto con `enabled`.
+  const canDispatch = role === "admin_empresa" || role === "coordinador" || role === "super_admin";
   const { data: drivers } = useQuery({
     queryKey: ["drivers"],
     queryFn: () => api.get<Driver[]>("/drivers"),
-    enabled: role === "admin_empresa" || role === "dispatcher" || role === "super_admin",
+    enabled: canDispatch,
   });
   const { data: vehicles } = useQuery({
     queryKey: ["vehicles"],
     queryFn: () => api.get<Vehicle[]>("/vehicles"),
-    enabled: role === "admin_empresa" || role === "dispatcher" || role === "super_admin",
+    enabled: canDispatch,
   });
 
   function invalidate() {
@@ -80,7 +81,9 @@ export default function RouteDetail() {
   if (isLoading || !data) return <p className="text-sm text-slate-500 dark:text-slate-400">Cargando...</p>;
 
   const { route, stops, delayed } = data;
-  const canDispatch = role === "admin_empresa" || role === "dispatcher" || role === "super_admin";
+  // Aprobar/rechazar es de la empresa cliente (es su pedido); confirmar/despachar es de
+  // la empresa proveedora (asigna camión/conductor) - roles distintos, permisos distintos.
+  const canApprove = role === "cliente_admin" || role === "cliente_coordinador" || role === "super_admin";
   const isConductor = role === "conductor";
 
   // La próxima parada pendiente es la única que el conductor puede marcar ahora mismo -
@@ -137,8 +140,8 @@ export default function RouteDetail() {
       <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900/60">
         <h2 className="mb-3 text-sm font-semibold text-slate-800 dark:text-slate-200">Acciones</h2>
         <div className="flex flex-wrap gap-2">
-          {/* CREADO: el coordinador humano (o la IA por WhatsApp, ver ai/agent.ts) aprueba o rechaza. */}
-          {canDispatch && route.status === "CREADO" && (
+          {/* CREADO: la empresa cliente (o la IA por WhatsApp, ver ai/agent.ts) aprueba o rechaza. */}
+          {canApprove && route.status === "CREADO" && (
             <>
               <button onClick={() => action.mutate(() => api.post(`/routes/${id}/approve`))} className="rounded-md bg-emerald-700 px-3 py-1.5 text-sm font-semibold text-white hover:bg-emerald-800">
                 Aprobar

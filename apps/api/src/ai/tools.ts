@@ -41,7 +41,7 @@ export const toolDefinitions = [
   },
   {
     name: "escalar_a_humano",
-    description: "Escala el pedido a un humano (admin_empresa/dispatcher) cuando está fuera del alcance de la IA.",
+    description: "Escala el pedido a un humano cuando está fuera del alcance de la IA.",
     input_schema: {
       type: "object" as const,
       properties: { motivo: { type: "string" } },

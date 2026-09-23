@@ -4,6 +4,7 @@ import type { Role } from "@migalog/shared";
 export type AuthClaims = {
   sub: string;
   tenantId: string | null;
+  clientId: string | null;
   role: Role;
 };
 
@@ -14,7 +15,7 @@ function getSecret(): Uint8Array {
 }
 
 export async function signAccessToken(claims: AuthClaims): Promise<string> {
-  return new SignJWT({ tenantId: claims.tenantId, role: claims.role })
+  return new SignJWT({ tenantId: claims.tenantId, clientId: claims.clientId, role: claims.role })
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(claims.sub)
     .setIssuedAt()
@@ -27,6 +28,7 @@ export async function verifyAccessToken(token: string): Promise<AuthClaims> {
   return {
     sub: payload.sub as string,
     tenantId: (payload.tenantId as string | null) ?? null,
+    clientId: (payload.clientId as string | null) ?? null,
     role: payload.role as Role,
   };
 }

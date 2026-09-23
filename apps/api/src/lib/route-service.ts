@@ -64,12 +64,19 @@ async function transition(
 
 export async function createRouteRequest(
   tenantId: string,
-  input: { providerId: string; stops: StopInput[]; notes?: string }
+  input: { clientId: string; stops: StopInput[]; notes?: string; scheduledAt?: string }
 ) {
   const route = firstOrThrow(
     await db
       .insert(routes)
-      .values({ tenantId, providerId: input.providerId, code: generateRouteCode(), notes: input.notes, status: "CREADO" })
+      .values({
+        tenantId,
+        clientId: input.clientId,
+        code: generateRouteCode(),
+        notes: input.notes,
+        status: "CREADO",
+        scheduledAt: input.scheduledAt ? new Date(input.scheduledAt) : undefined,
+      })
       .returning()
   );
 
@@ -85,6 +92,9 @@ export async function createRouteRequest(
         lat: s.lat,
         lng: s.lng,
         plannedAt: s.plannedAt ? new Date(s.plannedAt) : undefined,
+        cargoQuantity: s.cargoQuantity,
+        cargoUnit: s.cargoUnit,
+        cargoDescription: s.cargoDescription,
       }))
     )
     .returning();

@@ -3,28 +3,104 @@ import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api, ApiError } from "../lib/api";
 import { Button } from "../components/Button";
+import { Select } from "../components/Select";
+import { DatePicker } from "../components/DatePicker";
+import { useAuthStore } from "../store/auth";
+import { isClientRole } from "@migalog/shared";
 import type { RouteStopType } from "@migalog/shared";
 
-type Provider = { id: string; name: string };
+type ClientCompany = { id: string; name: string };
 
-type StopForm = { type: RouteStopType; label: string; address: string; lat: string; lng: string };
+type RouteTemplate = {
+  id: string;
+  category: string | null;
+  name: string;
+  originLabel: string;
+  originAddress: string;
+  originLat: number;
+  originLng: number;
+  destinationLabel: string;
+  destinationAddress: string;
+  destinationLat: number;
+  destinationLng: number;
+  price: number | null;
+  estimatedMinutes: number | null;
+};
 
-const emptyStop = (type: RouteStopType): StopForm => ({ type, label: "", address: "", lat: "", lng: "" });
+type StopForm = {
+  type: RouteStopType;
+  label: string;
+  address: string;
+  lat: string;
+  lng: string;
+  cargoQuantity: string;
+  cargoUnit: string;
+  cargoDescription: string;
+};
+
+const emptyStop = (type: RouteStopType): StopForm => ({
+  type,
+  label: "",
+  address: "",
+  lat: "",
+  lng: "",
+  cargoQuantity: "",
+  cargoUnit: "",
+  cargoDescription: "",
+});
 const inputClass = "rounded-md border border-slate-300 bg-slate-50 px-2 py-1.5 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100";
+const HOUR_OPTIONS = Array.from({ length: 24 }, (_, h) => ({ value: String(h).padStart(2, "0"), label: String(h).padStart(2, "0") }));
+const MINUTE_OPTIONS = ["00", "15", "30", "45"].map((m) => ({ value: m, label: m }));
 
 /**
- * Formulario del solicitante para crear una ruta con paradas dinámicas: siempre hay un
- * origen y un destino fijos, y se pueden agregar/quitar paradas intermedias entre medio -
- * el orden en que quedan en el array es el orden real en que el conductor las va a marcar.
+ * Formulario para crear una ruta con paradas dinámicas: siempre hay un origen y un destino
+ * fijos, y se pueden agregar/quitar paradas intermedias entre medio - el orden en que quedan
+ * en el array es el orden real en que el conductor las va a marcar. Cada parada puede llevar
+ * su propio detalle de carga (cantidad/unidad/descripción).
+ *
+ * Un rol cliente_* siempre crea para su propia empresa (no elige, el backend la fuerza).
+ * admin_empresa/super_admin no pertenecen a ninguna empresa cliente, así que eligen para
+ * cuál están creando la solicitud.
  */
 export default function NewRouteRequest() {
   const navigate = useNavigate();
-  const { data: providers } = useQuery({ queryKey: ["providers"], queryFn: () => api.get<Provider[]>("/providers") });
-  const [providerId, setProviderId] = useState("");
+  const role = useAuthStore((s) => s.user?.role);
+  const needsClientPicker = role ? !isClientRole(role) : false;
+
+  const { data: clientCompanies } = useQuery({
+    queryKey: ["clients"],
+    queryFn: () => api.get<ClientCompany[]>("/clients"),
+    enabled: needsClientPicker,
+  });
+  const [clientId, setClientId] = useState("");
   const [stops, setStops] = useState<StopForm[]>([emptyStop("origen"), emptyStop("destino")]);
   const [notes, setNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [templateId, setTemplateId] = useState("");
+  const [scheduledDate, setScheduledDate] = useState("");
+  const [scheduledHour, setScheduledHour] = useState("");
+  const [scheduledMinute, setScheduledMinute] = useState("");
+
+  // Catálogo de rutas frecuentes: un atajo, no una restricción - al elegir una acá se
+  // autocompletan origen y destino, pero las paradas intermedias se siguen cargando a mano
+  // y también se puede ignorar el catálogo y cargar todo manual como antes.
+  const { data: templates } = useQuery({ queryKey: ["route-templates"], queryFn: () => api.get<RouteTemplate[]>("/route-templates") });
+  const selectedTemplate = templates?.find((t) => t.id === templateId);
+
+  function applyTemplate(id: string) {
+    setTemplateId(id);
+    const template = templates?.find((t) => t.id === id);
+    if (!template) return;
+    setStops((prev) => {
+      const middle = prev.slice(1, -1);
+      return [
+        { ...prev[0]!, type: "origen", label: template.originLabel, address: template.originAddress, lat: String(template.originLat), lng: String(template.originLng) },
+        ...middle,
+        { ...prev[prev.length - 1]!, type: "destino", label: template.destinationLabel, address: template.destinationAddress, lat: String(template.destinationLat), lng: String(template.destinationLng) },
+      ];
+    });
+  }
 
   function updateStop(index: number, patch: Partial<StopForm>) {
     setStops((prev) => prev.map((s, i) => (i === index ? { ...s, ...patch } : s)));
@@ -49,15 +125,24 @@ export default function NewRouteRequest() {
     setError(null);
     setLoading(true);
     try {
+      const scheduledAt =
+        scheduledDate && scheduledHour && scheduledMinute
+          ? new Date(`${scheduledDate}T${scheduledHour}:${scheduledMinute}:00`).toISOString()
+          : undefined;
       const body = {
-        providerId,
+        // Un rol cliente_* no manda clientId - el backend usa el suyo propio.
+        clientId: needsClientPicker ? clientId : undefined,
         notes: notes || undefined,
+        scheduledAt,
         stops: stops.map((s) => ({
           type: s.type,
           label: s.label,
           address: s.address,
           lat: Number(s.lat),
           lng: Number(s.lng),
+          cargoQuantity: s.cargoQuantity ? Number(s.cargoQuantity) : undefined,
+          cargoUnit: s.cargoUnit || undefined,
+          cargoDescription: s.cargoDescription || undefined,
         })),
       };
       const res = await api.post<{ route: { id: string } }>("/routes", body);
@@ -73,15 +158,48 @@ export default function NewRouteRequest() {
     <div className="max-w-2xl">
       <h1 className="mb-4 text-xl font-bold text-slate-900 dark:text-white">Nueva solicitud de ruta</h1>
       <form onSubmit={submit} className="flex flex-col gap-4">
+        {needsClientPicker && (
+          <div>
+            <label className="mb-1 block text-sm text-slate-500 dark:text-slate-400">Empresa cliente</label>
+            <Select
+              required
+              value={clientId}
+              onChange={setClientId}
+              options={(clientCompanies ?? []).map((cc) => ({ value: cc.id, label: cc.name }))}
+            />
+          </div>
+        )}
+
         <div>
-          <label className="mb-1 block text-sm text-slate-500 dark:text-slate-400">Empresa proveedora</label>
-          <select required value={providerId} onChange={(e) => setProviderId(e.target.value)} className={`w-full ${inputClass}`}>
-            <option value="">Seleccionar...</option>
-            {providers?.map((p) => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
-          </select>
+          <label className="mb-1 block text-sm text-slate-500 dark:text-slate-400">Fecha y hora programada (opcional)</label>
+          <div className="flex gap-2">
+            <DatePicker value={scheduledDate} onChange={setScheduledDate} className="flex-1" />
+            <Select value={scheduledHour} onChange={setScheduledHour} options={HOUR_OPTIONS} placeholder="HH" className="w-20" />
+            <Select value={scheduledMinute} onChange={setScheduledMinute} options={MINUTE_OPTIONS} placeholder="MM" className="w-20" />
+          </div>
         </div>
+
+        {templates && templates.length > 0 && (
+          <div>
+            <label className="mb-1 block text-sm text-slate-500 dark:text-slate-400">Ruta del catálogo (opcional, autocompleta origen/destino)</label>
+            <Select
+              value={templateId}
+              onChange={applyTemplate}
+              placeholder="Cargar manualmente..."
+              options={templates.map((t) => ({
+                value: t.id,
+                label: `${t.category ? `${t.category} - ` : ""}${t.name}${t.price != null ? ` ($${t.price})` : ""}${t.estimatedMinutes != null ? ` - ${t.estimatedMinutes} min` : ""}`,
+              }))}
+            />
+            {selectedTemplate && (
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                {selectedTemplate.originLabel} → {selectedTemplate.destinationLabel}
+                {selectedTemplate.price != null ? ` · $${selectedTemplate.price}` : ""}
+                {selectedTemplate.estimatedMinutes != null ? ` · ~${selectedTemplate.estimatedMinutes} min` : ""}
+              </p>
+            )}
+          </div>
+        )}
 
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between">
@@ -119,6 +237,20 @@ export default function NewRouteRequest() {
                 />
                 <input required placeholder="Latitud" value={stop.lat} onChange={(e) => updateStop(i, { lat: e.target.value })} className={inputClass} />
                 <input required placeholder="Longitud" value={stop.lng} onChange={(e) => updateStop(i, { lng: e.target.value })} className={inputClass} />
+                <input
+                  placeholder="Cant."
+                  inputMode="numeric"
+                  value={stop.cargoQuantity}
+                  onChange={(e) => updateStop(i, { cargoQuantity: e.target.value.replace(/\D/g, "") })}
+                  className={inputClass}
+                />
+                <input placeholder="Unidad (ej. CAJAS)" value={stop.cargoUnit} onChange={(e) => updateStop(i, { cargoUnit: e.target.value })} className={inputClass} />
+                <input
+                  placeholder="Descripción de la carga"
+                  value={stop.cargoDescription}
+                  onChange={(e) => updateStop(i, { cargoDescription: e.target.value })}
+                  className={`col-span-2 ${inputClass}`}
+                />
               </div>
             </div>
           ))}

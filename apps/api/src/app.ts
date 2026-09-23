@@ -4,10 +4,11 @@ import { ZodError } from "zod";
 import { authRoutes } from "./routes/auth.js";
 import { tenantRoutes } from "./routes/tenants.js";
 import { userRoutes } from "./routes/users.js";
-import { providerRoutes } from "./routes/providers.js";
+import { clientRoutes } from "./routes/clients.js";
 import { driverRoutes } from "./routes/drivers.js";
 import { vehicleRoutes } from "./routes/vehicles.js";
 import { routeRoutes } from "./routes/routes.js";
+import { routeTemplateRoutes } from "./routes/route-templates.js";
 import { whatsappRoutes } from "./routes/whatsapp.js";
 import { RouteServiceError } from "./lib/route-service.js";
 
@@ -26,10 +27,11 @@ app.get("/health", (c) => c.json({ ok: true }));
 app.route("/auth", authRoutes);
 app.route("/tenants", tenantRoutes);
 app.route("/users", userRoutes);
-app.route("/providers", providerRoutes);
+app.route("/clients", clientRoutes);
 app.route("/drivers", driverRoutes);
 app.route("/vehicles", vehicleRoutes);
 app.route("/routes", routeRoutes);
+app.route("/route-templates", routeTemplateRoutes);
 app.route("/whatsapp", whatsappRoutes);
 
 app.onError((err, c) => {
