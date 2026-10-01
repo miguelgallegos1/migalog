@@ -52,7 +52,7 @@ vehicleRoutes.post("/", requireRole(...PROVIDER_MANAGE_ROLES, ...CLIENT_MANAGE_R
     return c.json({ error: "Indicá a qué empresa se le alquila el camión" }, 400);
   }
   const clientId = isClientRole(role) ? (c.get("clientId") as string) : null;
-  const newVehicleValues: typeof vehicles.$inferInsert = { tenantId, clientId, ...body };
+  const newVehicleValues = { tenantId, clientId, ...body };
   const [row] = await db.insert(vehicles).values(newVehicleValues).returning();
   return c.json(row, 201);
 });
@@ -64,7 +64,7 @@ vehicleRoutes.patch("/:id/status", requireRole(...PROVIDER_MANAGE_ROLES, ...CLIE
   const { status } = statusSchema.parse(await c.req.json());
   const conditions = [eq(vehicles.id, param(c, "id")), eq(vehicles.tenantId, tenantId)];
   conditions.push(isClientRole(role) ? eq(vehicles.clientId, c.get("clientId") as string) : isNull(vehicles.clientId));
-  const statusValues: Partial<typeof vehicles.$inferInsert> = { status };
+  const statusValues = { status };
   const [row] = await db.update(vehicles).set(statusValues).where(and(...conditions)).returning();
   if (!row) return c.json({ error: "No encontrado" }, 404);
   return c.json(row);

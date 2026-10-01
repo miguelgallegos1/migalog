@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { usesPassword, usesPin, isClientRole, inviteUserSchema, loginPasswordSchema, loginPinSchema } from "@migalog/shared";
 import { db } from "../db/client.js";
-import { users, devices, clients, tenants, type NewUser } from "../db/schema.js";
+import { users, devices, clients, tenants } from "../db/schema.js";
 import { eq, and } from "drizzle-orm";
 import { hashSecret, verifySecret, randomToken } from "../lib/crypto.js";
 import { firstOrThrow } from "../lib/db-helpers.js";
@@ -113,8 +113,8 @@ authRoutes.post(
       clientId = client.id;
     }
 
-    // Variable, no literal directo en .values() - ver comentario en NewUser (schema.ts).
-    const newUserValues: NewUser = {
+    // Variable, no literal directo en .values() (ver seed.ts para el detalle de por qué no se anota con typeof users.$inferInsert).
+    const newUserValues = {
       tenantId,
       clientId,
       role: body.role,
@@ -139,8 +139,8 @@ authRoutes.post("/setup-password", async (c) => {
   if (!user || !usesPassword(user.role)) return c.json({ error: "Solicitud inválida" }, 400);
 
   const passwordHash = await hashSecret(password);
-  // Variable, no literal directo en .set() - ver comentario en NewUser (schema.ts).
-  const passwordValues: Partial<NewUser> = { passwordHash };
+  // Variable, no literal directo en .set() (ver seed.ts para el detalle de por qué no se anota con typeof users.$inferInsert).
+  const passwordValues = { passwordHash };
   await db.update(users).set(passwordValues).where(eq(users.id, userId));
   return c.json({ ok: true });
 });
@@ -157,12 +157,12 @@ authRoutes.post("/setup-pin", async (c) => {
   if (!user || !usesPin(user.role)) return c.json({ error: "Solicitud inválida" }, 400);
 
   const pinHash = await hashSecret(pin);
-  const pinValues: Partial<NewUser> = { pinHash };
+  const pinValues = { pinHash };
   await db.update(users).set(pinValues).where(eq(users.id, userId));
 
   const deviceRefreshToken = randomToken();
   const sessionCredentialHash = await hashSecret(deviceRefreshToken);
-  const deviceValues: typeof devices.$inferInsert = { userId, label: deviceLabel, sessionCredentialHash };
+  const deviceValues = { userId, label: deviceLabel, sessionCredentialHash };
   const device = firstOrThrow(await db.insert(devices).values(deviceValues).returning());
 
   // deviceRefreshToken se devuelve una sola vez: el cliente lo guarda cifrado en el dispositivo
@@ -201,14 +201,14 @@ authRoutes.post("/login-pin", async (c) => {
     const attempts = device.failedAttempts + 1;
     const lockedUntil =
       attempts >= FAILED_ATTEMPTS_LIMIT ? new Date(Date.now() + LOCK_MINUTES * 60_000) : null;
-    const lockoutValues: Partial<typeof devices.$inferInsert> = { failedAttempts: attempts, lockedUntil };
+    const lockoutValues = { failedAttempts: attempts, lockedUntil };
     await db.update(devices).set(lockoutValues).where(eq(devices.id, deviceId));
     return c.json({ error: "PIN incorrecto" }, 401);
   }
 
   if (!(await isAccountUsable(user))) return c.json({ error: "Empresa desactivada" }, 401);
 
-  const resetAttemptsValues: Partial<typeof devices.$inferInsert> = { failedAttempts: 0, lockedUntil: null };
+  const resetAttemptsValues = { failedAttempts: 0, lockedUntil: null };
   await db.update(devices).set(resetAttemptsValues).where(eq(devices.id, deviceId));
   const accessToken = await signAccessToken({ sub: user.id, tenantId: user.tenantId, clientId: user.clientId, role: user.role });
   return c.json({ accessToken, user: await buildSessionUser(user) });
@@ -253,7 +253,7 @@ authRoutes.post("/device/register", requireAuth, async (c) => {
 
   const deviceRefreshToken = randomToken();
   const sessionCredentialHash = await hashSecret(deviceRefreshToken);
-  const registerDeviceValues: typeof devices.$inferInsert = { userId, label: deviceLabel, sessionCredentialHash };
+  const registerDeviceValues = { userId, label: deviceLabel, sessionCredentialHash };
   const device = firstOrThrow(await db.insert(devices).values(registerDeviceValues).returning());
 
   return c.json({ deviceId: device.id, deviceRefreshToken });
@@ -276,7 +276,7 @@ authRoutes.post("/device/enable-biometric", requireAuth, async (c) => {
     .where(and(eq(devices.id, deviceId), eq(devices.userId, userId)));
   if (!device) return c.json({ error: "Dispositivo no encontrado" }, 404);
 
-  const biometricValues: Partial<typeof devices.$inferInsert> = { webauthnCredentialId };
+  const biometricValues = { webauthnCredentialId };
   await db.update(devices).set(biometricValues).where(eq(devices.id, deviceId));
   return c.json({ ok: true });
 });

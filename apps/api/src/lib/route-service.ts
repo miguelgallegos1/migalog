@@ -26,7 +26,11 @@ async function transition(
   routeId: string,
   to: RouteStatus,
   actor: Actor,
-  extra: Partial<typeof routes.$inferInsert> = {},
+  // Tipo escrito a mano (no typeof routes.$inferInsert) a propósito: en el entorno de build
+  // de Vercel ese tipo generado por Drizzle resulta incompleto (ver seed.ts), y un parámetro
+  // tipado con él haría que CUALQUIER literal fresco que un caller le pase (ver confirmRoute/
+  // arriveAtStop más abajo) dispare el mismo error en el límite de la función.
+  extra: { driverId?: string; vehicleId?: string; currentStopId?: string } = {},
   note?: string
 ) {
   const route = await requireRoute(tenantId, routeId);
@@ -38,12 +42,12 @@ async function transition(
   // puede disparar el excess-property-check de TypeScript contra el overload equivocado de
   // Drizzle (pasó en build, no en local - ver historial de commits). Vía variable, TS
   // chequea por asignabilidad normal.
-  const transitionValues: Partial<typeof routes.$inferInsert> = { status: to, updatedAt: new Date(), ...extra };
+  const transitionValues = { status: to, updatedAt: new Date(), ...extra };
   const updated = firstOrThrow(
     await db.update(routes).set(transitionValues).where(eq(routes.id, routeId)).returning()
   );
 
-  const historyValues: typeof routeStatusHistory.$inferInsert = {
+  const historyValues = {
     routeId,
     fromStatus: route.status,
     toStatus: to,
@@ -79,12 +83,12 @@ export async function createRouteRequest(
     }
   }
 
-  const newRouteValues: typeof routes.$inferInsert = {
+  const newRouteValues = {
     tenantId,
     clientId: input.clientId,
     code: generateRouteCode(),
     notes: input.notes,
-    status: "CREADO",
+    status: "CREADO" as const,
     scheduledAt: input.scheduledAt ? new Date(input.scheduledAt) : undefined,
   };
   const route = firstOrThrow(await db.insert(routes).values(newRouteValues).returning());
@@ -124,11 +128,11 @@ export async function createRouteRequest(
           .returning()
       : [];
 
-  const creationHistoryValues: typeof routeStatusHistory.$inferInsert = {
+  const creationHistoryValues = {
     routeId: route.id,
     fromStatus: null,
-    toStatus: "CREADO",
-    actorType: "human",
+    toStatus: "CREADO" as const,
+    actorType: "human" as const,
   };
   await db.insert(routeStatusHistory).values(creationHistoryValues);
 
@@ -229,7 +233,7 @@ export async function parkRoute(tenantId: string, routeId: string, actor: Actor)
   const { stops } = await getRouteWithStops(tenantId, routeId);
   const origin = stops.find((s) => s.type === "origen");
   if (origin && origin.status !== "completada") {
-    const arrivalValues: Partial<typeof routeStops.$inferInsert> = { status: "completada", arrivedAt: new Date() };
+    const arrivalValues = { status: "completada" as const, arrivedAt: new Date() };
     await db.update(routeStops).set(arrivalValues).where(eq(routeStops.id, origin.id));
   }
   return updated;
@@ -253,7 +257,7 @@ export async function arriveAtStop(tenantId: string, routeId: string, stopId: st
     throw new RouteServiceError("Hay paradas anteriores sin marcar - deben ir en orden");
   }
 
-  const stopArrivalValues: Partial<typeof routeStops.$inferInsert> = { status: "completada", arrivedAt: new Date() };
+  const stopArrivalValues = { status: "completada" as const, arrivedAt: new Date() };
   await db.update(routeStops).set(stopArrivalValues).where(eq(routeStops.id, stopId));
 
   const isLast = stop.sequenceOrder === Math.max(...stops.map((s) => s.sequenceOrder));
@@ -274,7 +278,7 @@ export async function arriveAtStop(tenantId: string, routeId: string, stopId: st
 
 export async function recordLocationPing(tenantId: string, routeId: string, lat: number, lng: number) {
   await requireRoute(tenantId, routeId);
-  const pingValues: typeof locationPings.$inferInsert = { routeId, lat, lng };
+  const pingValues = { routeId, lat, lng };
   const ping = firstOrThrow(await db.insert(locationPings).values(pingValues).returning());
   await publishTenantEvent(tenantId, "route.location", { routeId, lat, lng, recordedAt: ping.recordedAt });
   return ping;
@@ -288,9 +292,9 @@ export async function reportIncident(
   photo?: string
 ) {
   await requireRoute(tenantId, routeId);
-  const incidentValues: typeof routeIncidents.$inferInsert = { routeId, severity, description, photo };
+  const incidentValues = { routeId, severity, description, photo };
   const incident = firstOrThrow(await db.insert(routeIncidents).values(incidentValues).returning());
-  const hasIncidentValues: Partial<typeof routes.$inferInsert> = { hasIncident: true };
+  const hasIncidentValues = { hasIncident: true };
   await db.update(routes).set(hasIncidentValues).where(eq(routes.id, routeId));
   await publishTenantEvent(tenantId, "route.incident", { routeId, severity, description });
   return incident;
@@ -335,11 +339,11 @@ export async function checkAvailability(
 
 export async function rescheduleStop(tenantId: string, routeId: string, stopId: string, newPlannedAt: Date, actor: Actor) {
   const route = await requireRoute(tenantId, routeId);
-  const plannedAtValues: Partial<typeof routeStops.$inferInsert> = { plannedAt: newPlannedAt };
+  const plannedAtValues = { plannedAt: newPlannedAt };
   const [stop] = await db.update(routeStops).set(plannedAtValues).where(eq(routeStops.id, stopId)).returning();
   if (!stop) throw new RouteServiceError("Parada no encontrada", 404);
 
-  const rescheduleHistoryValues: typeof routeStatusHistory.$inferInsert = {
+  const rescheduleHistoryValues = {
     routeId,
     toStatus: route.status,
     actorType: actor.type,

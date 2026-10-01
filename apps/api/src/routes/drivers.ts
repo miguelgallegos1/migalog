@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { isClientRole, phoneSchema, base64PhotoSchema } from "@migalog/shared";
 import { db } from "../db/client.js";
-import { drivers, users, vehicles, type NewUser } from "../db/schema.js";
+import { drivers, users, vehicles } from "../db/schema.js";
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import { requireAuth, requireTenant, requireRole, type AppVariables } from "../middleware/auth.js";
 import { param } from "../lib/http.js";
@@ -98,12 +98,12 @@ driverRoutes.post("/", requireRole(...PROVIDER_MANAGE_ROLES, ...CLIENT_MANAGE_RO
     return c.json({ error: "Ese camión no existe o no pertenece a tu flota" }, 400);
   }
 
-  // Variable, no literal directo en .values() - ver comentario en NewUser (schema.ts).
-  const newUserValues: NewUser = { tenantId, clientId, role: clientId ? "cliente_conductor" : "conductor", name: body.name, phone: body.phone };
+  // Variable, no literal directo en .values() (ver seed.ts para el detalle de por qué no se anota con typeof users.$inferInsert).
+  const newUserValues = { tenantId, clientId, role: clientId ? ("cliente_conductor" as const) : ("conductor" as const), name: body.name, phone: body.phone };
   const user = firstOrThrow(
     await db.insert(users).values(newUserValues).returning()
   );
-  const newDriverValues: typeof drivers.$inferInsert = {
+  const newDriverValues = {
     tenantId,
     clientId,
     userId: user.id,
@@ -144,7 +144,7 @@ driverRoutes.patch("/:id/status", requireRole(...PROVIDER_MANAGE_ROLES, ...CLIEN
   const { status } = statusSchema.parse(await c.req.json());
   const conditions = [eq(drivers.id, param(c, "id")), eq(drivers.tenantId, tenantId)];
   conditions.push(isClientRole(role) ? eq(drivers.clientId, c.get("clientId") as string) : isNull(drivers.clientId));
-  const statusValues: Partial<typeof drivers.$inferInsert> = { status };
+  const statusValues = { status };
   const [row] = await db.update(drivers).set(statusValues).where(and(...conditions)).returning(DRIVER_LIGHT_COLUMNS);
   if (!row) return c.json({ error: "No encontrado" }, 404);
   return c.json(row);

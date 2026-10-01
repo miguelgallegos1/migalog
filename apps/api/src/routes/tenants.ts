@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { phoneSchema } from "@migalog/shared";
 import { db } from "../db/client.js";
-import { tenants, users, type NewUser } from "../db/schema.js";
+import { tenants, users } from "../db/schema.js";
 import { asc, eq } from "drizzle-orm";
 import { signSetupToken } from "../lib/jwt.js";
 import { firstOrThrow, isForeignKeyViolation } from "../lib/db-helpers.js";
@@ -69,11 +69,9 @@ tenantRoutes.post("/", async (c) => {
   const slug = await uniqueSlug(body.name);
 
   const tenant = firstOrThrow(await db.insert(tenants).values({ ruc: body.ruc, name: body.name, slug }).returning());
-  // Asignado a una variable (no un objeto literal directo en .values()) a propósito: un
-  // literal "fresco" pasado directo dispara el excess-property-check de TypeScript contra el
-  // overload equivocado de Drizzle en ciertas versiones del compilador (ver NewUser en
-  // schema.ts) - vía variable, TS lo chequea por asignabilidad normal, no por ese camino.
-  const adminValues: NewUser = { tenantId: tenant.id, role: "admin_empresa", name: body.adminName, phone: body.adminPhone };
+  // Asignado a una variable sin anotar su tipo con typeof users.$inferInsert a propósito
+  // (ver seed.ts para el detalle de por qué).
+  const adminValues = { tenantId: tenant.id, role: "admin_empresa" as const, name: body.adminName, phone: body.adminPhone };
   const admin = firstOrThrow(
     await db.insert(users).values(adminValues).returning()
   );
@@ -85,7 +83,7 @@ tenantRoutes.post("/", async (c) => {
 tenantRoutes.patch("/:id/active", async (c) => {
   const id = c.req.param("id");
   const { active } = z.object({ active: z.boolean() }).parse(await c.req.json());
-  const activeValues: Partial<typeof tenants.$inferInsert> = { active };
+  const activeValues = { active };
   const [tenant] = await db.update(tenants).set(activeValues).where(eq(tenants.id, id)).returning();
   if (!tenant) return c.json({ error: "Empresa no encontrada" }, 404);
   return c.json(tenant);
@@ -96,7 +94,7 @@ const updateTenantSchema = z.object({ ruc: z.string().min(1), name: z.string().m
 tenantRoutes.patch("/:id", async (c) => {
   const id = c.req.param("id");
   const body = updateTenantSchema.parse(await c.req.json());
-  const updateValues: Partial<typeof tenants.$inferInsert> = { ruc: body.ruc, name: body.name };
+  const updateValues = { ruc: body.ruc, name: body.name };
   const [tenant] = await db.update(tenants).set(updateValues).where(eq(tenants.id, id)).returning();
   if (!tenant) return c.json({ error: "Empresa no encontrada" }, 404);
   return c.json(tenant);

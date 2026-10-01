@@ -1,5 +1,5 @@
 import { db } from "./client.js";
-import { tenants, clients, users, vehicles, drivers, routes, routeStops, routeStatusHistory, devices, type NewUser } from "./schema.js";
+import { tenants, clients, users, vehicles, drivers, routes, routeStops, routeStatusHistory, devices } from "./schema.js";
 import { hashSecret, randomToken } from "../lib/crypto.js";
 import { generateRouteCode } from "../lib/ids.js";
 import { firstOrThrow } from "../lib/db-helpers.js";
@@ -13,13 +13,20 @@ async function main() {
     await db.insert(tenants).values({ ruc: "0801199901234", name: "Transportes Demo S.A.", slug: "demo" }).returning()
   );
 
-  // Cada insert de usuario se pasa como variable, no como objeto literal directo en
-  // .values() - un literal "fresco" ahí dispara el excess-property-check de TypeScript
-  // contra el overload equivocado de Drizzle en ciertas versiones del compilador (ver
-  // NewUser en schema.ts); vía variable, TS lo chequea por asignabilidad normal.
-  const superAdminValues: NewUser = {
+  // Cada insert de usuario se pasa como variable (no un objeto literal directo en .values()),
+  // sin anotar su tipo con typeof users.$inferInsert: en el entorno de build de Vercel ese
+  // tipo generado por Drizzle resulta incompleto (le faltan columnas nullable/con default
+  // como tenantId/clientId/passwordHash/pinHash), así que anotar explícitamente con él
+  // reproduce el mismo error "Object literal may only specify known properties" en la propia
+  // declaración de la variable. Dejar que TS infiera el tipo del literal (sin anotación)
+  // evita arrastrar ese tipo roto - al pasar la variable a .values()/.set() se chequea por
+  // asignabilidad normal, no por ese camino. El "as const" en "role" es aparte: sin él, TS
+  // ensancha el literal a "string" al no haber un tipo esperado que lo ancle, y un "role"
+  // genérico "string" tampoco matchea el enum de Drizzle - as const lo mantiene como el
+  // literal exacto.
+  const superAdminValues = {
     tenantId: null,
-    role: "super_admin",
+    role: "super_admin" as const,
     name: "Dueño MigaLog",
     phone: "+50588880099",
     passwordHash: await hashSecret("Demo1234!"),
@@ -27,13 +34,13 @@ async function main() {
   const superAdmin = firstOrThrow(await db.insert(users).values(superAdminValues).returning());
 
   // --- Nivel 1: empresa proveedora (el tenant) ---
-  const adminEmpresaValues: NewUser = { tenantId: tenant.id, role: "admin_empresa", name: "Admin Demo", phone: "+50588880000", passwordHash: await hashSecret("Demo1234!") };
+  const adminEmpresaValues = { tenantId: tenant.id, role: "admin_empresa" as const, name: "Admin Demo", phone: "+50588880000", passwordHash: await hashSecret("Demo1234!") };
   const adminEmpresa = firstOrThrow(await db.insert(users).values(adminEmpresaValues).returning());
 
-  const coordinadorValues: NewUser = { tenantId: tenant.id, role: "coordinador", name: "Coordinador Demo", phone: "+50588880004", passwordHash: await hashSecret("Demo1234!") };
+  const coordinadorValues = { tenantId: tenant.id, role: "coordinador" as const, name: "Coordinador Demo", phone: "+50588880004", passwordHash: await hashSecret("Demo1234!") };
   const coordinador = firstOrThrow(await db.insert(users).values(coordinadorValues).returning());
 
-  const conductorUserValues: NewUser = { tenantId: tenant.id, role: "conductor", name: "Conductor Demo", phone: "+50588880001", pinHash: await hashSecret("123456") };
+  const conductorUserValues = { tenantId: tenant.id, role: "conductor" as const, name: "Conductor Demo", phone: "+50588880001", pinHash: await hashSecret("123456") };
   const conductorUser = firstOrThrow(await db.insert(users).values(conductorUserValues).returning());
 
   // --- Nivel 2: empresa cliente (varios usuarios, cada uno con su propio rol) ---
@@ -41,53 +48,53 @@ async function main() {
     await db.insert(clients).values({ tenantId: tenant.id, ruc: "0801199905678", name: "Comercial El Sol" }).returning()
   );
 
-  const clienteAdminValues: NewUser = { tenantId: tenant.id, clientId: client.id, role: "cliente_admin", name: "Admin Cliente Demo", phone: "+50588880010", passwordHash: await hashSecret("Demo1234!") };
+  const clienteAdminValues = { tenantId: tenant.id, clientId: client.id, role: "cliente_admin" as const, name: "Admin Cliente Demo", phone: "+50588880010", passwordHash: await hashSecret("Demo1234!") };
   const clienteAdmin = firstOrThrow(await db.insert(users).values(clienteAdminValues).returning());
 
-  const clienteCoordinadorValues: NewUser = { tenantId: tenant.id, clientId: client.id, role: "cliente_coordinador", name: "Coordinador Cliente Demo", phone: "+50588880011", passwordHash: await hashSecret("Demo1234!") };
+  const clienteCoordinadorValues = { tenantId: tenant.id, clientId: client.id, role: "cliente_coordinador" as const, name: "Coordinador Cliente Demo", phone: "+50588880011", passwordHash: await hashSecret("Demo1234!") };
   const clienteCoordinador = firstOrThrow(await db.insert(users).values(clienteCoordinadorValues).returning());
 
-  const clienteJefeValues: NewUser = { tenantId: tenant.id, clientId: client.id, role: "cliente_jefe", name: "Jefe Cliente Demo", phone: "+50588880012", passwordHash: await hashSecret("Demo1234!") };
+  const clienteJefeValues = { tenantId: tenant.id, clientId: client.id, role: "cliente_jefe" as const, name: "Jefe Cliente Demo", phone: "+50588880012", passwordHash: await hashSecret("Demo1234!") };
   const clienteJefe = firstOrThrow(await db.insert(users).values(clienteJefeValues).returning());
 
-  const clienteVisualizadorValues: NewUser = { tenantId: tenant.id, clientId: client.id, role: "cliente_visualizador", name: "Visualizador Cliente Demo", phone: "+50588880013", passwordHash: await hashSecret("Demo1234!") };
+  const clienteVisualizadorValues = { tenantId: tenant.id, clientId: client.id, role: "cliente_visualizador" as const, name: "Visualizador Cliente Demo", phone: "+50588880013", passwordHash: await hashSecret("Demo1234!") };
   const clienteVisualizador = firstOrThrow(await db.insert(users).values(clienteVisualizadorValues).returning());
 
-  const solicitanteUserValues: NewUser = { tenantId: tenant.id, clientId: client.id, role: "cliente_solicitante", name: "Solicitante Demo", phone: "+50588880002", pinHash: await hashSecret("654321") };
+  const solicitanteUserValues = { tenantId: tenant.id, clientId: client.id, role: "cliente_solicitante" as const, name: "Solicitante Demo", phone: "+50588880002", pinHash: await hashSecret("654321") };
   const solicitanteUser = firstOrThrow(await db.insert(users).values(solicitanteUserValues).returning());
 
-  const vehicleValues: typeof vehicles.$inferInsert = { tenantId: tenant.id, plate: "M-123456", brandModel: "Hino 300", capacityM3: 25 };
+  const vehicleValues = { tenantId: tenant.id, plate: "M-123456", brandModel: "Hino 300", capacityM3: 25 };
   const vehicle = firstOrThrow(await db.insert(vehicles).values(vehicleValues).returning());
 
-  const driverValues: typeof drivers.$inferInsert = { tenantId: tenant.id, userId: conductorUser.id, vehicleId: vehicle.id, licenseExpiresAt: "2027-12-31" };
+  const driverValues = { tenantId: tenant.id, userId: conductorUser.id, vehicleId: vehicle.id, licenseExpiresAt: "2027-12-31" };
   await db.insert(drivers).values(driverValues).returning();
 
-  const routeValues: typeof routes.$inferInsert = { tenantId: tenant.id, code: generateRouteCode(), clientId: client.id, status: "CREADO", notes: "Ruta de ejemplo generada por el seed" };
+  const routeValues = { tenantId: tenant.id, code: generateRouteCode(), clientId: client.id, status: "CREADO" as const, notes: "Ruta de ejemplo generada por el seed" };
   const route = firstOrThrow(await db.insert(routes).values(routeValues).returning());
 
-  const stopValues: (typeof routeStops.$inferInsert)[] = [
-    { routeId: route.id, sequenceOrder: 0, type: "origen", label: "Bodega Central", address: "Managua, km 5", lat: 12.1364, lng: -86.2514 },
-    { routeId: route.id, sequenceOrder: 1, type: "parada", label: "Parada 1 - Cliente Norte", address: "Managua, Linda Vista", lat: 12.1489, lng: -86.2362 },
-    { routeId: route.id, sequenceOrder: 2, type: "parada", label: "Parada 2 - Cliente Sur", address: "Managua, Bello Horizonte", lat: 12.1201, lng: -86.2478 },
-    { routeId: route.id, sequenceOrder: 3, type: "destino", label: "Destino", address: "Masaya, centro", lat: 11.9744, lng: -86.094 },
+  const stopValues = [
+    { routeId: route.id, sequenceOrder: 0, type: "origen" as const, label: "Bodega Central", address: "Managua, km 5", lat: 12.1364, lng: -86.2514 },
+    { routeId: route.id, sequenceOrder: 1, type: "parada" as const, label: "Parada 1 - Cliente Norte", address: "Managua, Linda Vista", lat: 12.1489, lng: -86.2362 },
+    { routeId: route.id, sequenceOrder: 2, type: "parada" as const, label: "Parada 2 - Cliente Sur", address: "Managua, Bello Horizonte", lat: 12.1201, lng: -86.2478 },
+    { routeId: route.id, sequenceOrder: 3, type: "destino" as const, label: "Destino", address: "Masaya, centro", lat: 11.9744, lng: -86.094 },
   ];
   await db.insert(routeStops).values(stopValues);
 
-  const routeHistoryValues: typeof routeStatusHistory.$inferInsert = {
+  const routeHistoryValues = {
     routeId: route.id,
     fromStatus: null,
-    toStatus: "CREADO",
-    actorType: "human",
+    toStatus: "CREADO" as const,
+    actorType: "human" as const,
     actorUserId: solicitanteUser.id,
   };
   await db.insert(routeStatusHistory).values(routeHistoryValues);
 
   const conductorDeviceToken = randomToken();
-  const conductorDeviceValues: typeof devices.$inferInsert = { userId: conductorUser.id, label: "Teléfono demo conductor", sessionCredentialHash: await hashSecret(conductorDeviceToken) };
+  const conductorDeviceValues = { userId: conductorUser.id, label: "Teléfono demo conductor", sessionCredentialHash: await hashSecret(conductorDeviceToken) };
   const conductorDevice = firstOrThrow(await db.insert(devices).values(conductorDeviceValues).returning());
 
   const solicitanteDeviceToken = randomToken();
-  const solicitanteDeviceValues: typeof devices.$inferInsert = { userId: solicitanteUser.id, label: "Teléfono demo solicitante", sessionCredentialHash: await hashSecret(solicitanteDeviceToken) };
+  const solicitanteDeviceValues = { userId: solicitanteUser.id, label: "Teléfono demo solicitante", sessionCredentialHash: await hashSecret(solicitanteDeviceToken) };
   const solicitanteDevice = firstOrThrow(await db.insert(devices).values(solicitanteDeviceValues).returning());
 
   // Además del device+PIN ya creado (útil para probar la API directo con curl), generamos

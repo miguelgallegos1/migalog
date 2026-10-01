@@ -156,7 +156,7 @@ routeTemplateRoutes.post(
     if (!validation.ok) return c.json({ error: validation.error }, validation.status);
     const { name } = validation;
 
-    const newTemplateValues: typeof routeTemplates.$inferInsert = {
+    const newTemplateValues = {
       tenantId,
       name,
       effectiveDate: body.effectiveDate,
@@ -166,7 +166,7 @@ routeTemplateRoutes.post(
       price: body.price,
       estimatedMinutes: body.estimatedMinutes,
       distanceKm: body.distanceKm,
-      status: "pendiente",
+      status: "pendiente" as const,
       proposedByClientId: clientId,
     };
     const [row] = await db.insert(routeTemplates).values(newTemplateValues).returning();
@@ -201,7 +201,7 @@ routeTemplateRoutes.post("/:id/resubmit", requireRole("cliente_admin", "cliente_
   if (!validation.ok) return c.json({ error: validation.error }, validation.status);
   const { name } = validation;
 
-  const resubmitValues: Partial<typeof routeTemplates.$inferInsert> = {
+  const resubmitValues = {
     name,
     effectiveDate: body.effectiveDate,
     billingSiteId: body.billingSiteId,
@@ -210,7 +210,7 @@ routeTemplateRoutes.post("/:id/resubmit", requireRole("cliente_admin", "cliente_
     price: body.price,
     estimatedMinutes: body.estimatedMinutes,
     distanceKm: body.distanceKm,
-    status: "pendiente",
+    status: "pendiente" as const,
   };
   await db.update(routeTemplates).set(resubmitValues).where(eq(routeTemplates.id, id));
 
@@ -227,7 +227,7 @@ routeTemplateRoutes.post("/:id/resubmit", requireRole("cliente_admin", "cliente_
 routeTemplateRoutes.post("/:id/approve", requireRole("admin_empresa", "coordinador", "super_admin"), async (c) => {
   const tenantId = c.get("tenantId") as string;
   const body = approveRouteTemplateSchema.parse(await c.req.json());
-  const approveValues: Partial<typeof routeTemplates.$inferInsert> = { status: "aprobada", price: body.price, estimatedMinutes: body.estimatedMinutes };
+  const approveValues = { status: "aprobada" as const, price: body.price, estimatedMinutes: body.estimatedMinutes };
   const [row] = await db
     .update(routeTemplates)
     .set(approveValues)
@@ -239,7 +239,7 @@ routeTemplateRoutes.post("/:id/approve", requireRole("admin_empresa", "coordinad
 
 routeTemplateRoutes.post("/:id/reject", requireRole("admin_empresa", "coordinador", "super_admin"), async (c) => {
   const tenantId = c.get("tenantId") as string;
-  const rejectValues: Partial<typeof routeTemplates.$inferInsert> = { status: "rechazada" };
+  const rejectValues = { status: "rechazada" as const };
   const [row] = await db
     .update(routeTemplates)
     .set(rejectValues)
@@ -275,7 +275,7 @@ routeTemplateRoutes.patch("/:id", requireRole(...MANAGE_ROLES), async (c) => {
 routeTemplateRoutes.patch("/:id/active", requireRole(...MANAGE_ROLES), async (c) => {
   const tenantId = c.get("tenantId") as string;
   const { active } = z.object({ active: z.boolean() }).parse(await c.req.json());
-  const activeValues: Partial<typeof routeTemplates.$inferInsert> = { active };
+  const activeValues = { active };
   const [row] = await db
     .update(routeTemplates)
     .set(activeValues)

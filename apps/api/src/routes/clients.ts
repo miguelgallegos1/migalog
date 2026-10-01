@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { phoneSchema } from "@migalog/shared";
 import { db } from "../db/client.js";
-import { clients, users, type NewUser } from "../db/schema.js";
+import { clients, users } from "../db/schema.js";
 import { and, asc, eq } from "drizzle-orm";
 import { signSetupToken } from "../lib/jwt.js";
 import { firstOrThrow, isForeignKeyViolation } from "../lib/db-helpers.js";
@@ -55,8 +55,8 @@ clientRoutes.post("/", requireRole("admin_empresa", "super_admin"), async (c) =>
   const body = createSchema.parse(await c.req.json());
 
   const client = firstOrThrow(await db.insert(clients).values({ tenantId, ruc: body.ruc, name: body.name }).returning());
-  // Variable, no literal directo en .values() - ver comentario en NewUser (schema.ts).
-  const adminValues: NewUser = { tenantId, clientId: client.id, role: "cliente_admin", name: body.adminName, phone: body.adminPhone };
+  // Variable, no literal directo en .values() (ver seed.ts para el detalle de por qué no se anota con typeof users.$inferInsert).
+  const adminValues = { tenantId, clientId: client.id, role: "cliente_admin" as const, name: body.adminName, phone: body.adminPhone };
   const admin = firstOrThrow(
     await db.insert(users).values(adminValues).returning()
   );
@@ -80,7 +80,7 @@ const updateSchema = z.object({ ruc: z.string().min(1), name: z.string().min(1) 
 clientRoutes.patch("/:id", requireRole("admin_empresa", "super_admin"), async (c) => {
   const tenantId = c.get("tenantId") as string;
   const body = updateSchema.parse(await c.req.json());
-  const updateValues: Partial<typeof clients.$inferInsert> = { ruc: body.ruc, name: body.name };
+  const updateValues = { ruc: body.ruc, name: body.name };
   const [row] = await db
     .update(clients)
     .set(updateValues)
@@ -93,7 +93,7 @@ clientRoutes.patch("/:id", requireRole("admin_empresa", "super_admin"), async (c
 clientRoutes.patch("/:id/active", requireRole("admin_empresa", "super_admin"), async (c) => {
   const tenantId = c.get("tenantId") as string;
   const { active } = z.object({ active: z.boolean() }).parse(await c.req.json());
-  const activeValues: Partial<typeof clients.$inferInsert> = { active };
+  const activeValues = { active };
   const [row] = await db
     .update(clients)
     .set(activeValues)

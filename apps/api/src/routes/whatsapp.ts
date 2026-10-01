@@ -41,7 +41,7 @@ whatsappRoutes.post("/webhook", async (c) => {
 
   const result = await handleIncomingWhatsAppMessage(tenant.id, body.from, body.text);
 
-  const agentActionValues: typeof aiAgentActions.$inferInsert = {
+  const agentActionValues = {
     tenantId: tenant.id,
     routeId: result.routeId,
     fromPhone: body.from,
