@@ -27,7 +27,9 @@ export function Button({ variant = "primary", className = "", ...props }: Button
   return (
     <button
       {...props}
-      className={`rounded-lg px-4 py-2 text-sm font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${VARIANT_CLASSES[variant]} ${className}`}
+      // El "levante" al pasar el mouse es solo traslado + una sombra muy leve (shadow-sm, sin
+      // color) - una sombra fuerte/de color competía con el resto del diseño, más vale sutil.
+      className={`rounded-lg px-4 py-2 text-sm font-bold transition-all duration-150 hover:-translate-y-0.5 hover:shadow-sm active:translate-y-0 active:shadow-none disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:shadow-none ${VARIANT_CLASSES[variant]} ${className}`}
     />
   );
 }

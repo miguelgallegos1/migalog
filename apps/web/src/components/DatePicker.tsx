@@ -1,11 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
+import { useClickOutside } from "../hooks/useClickOutside";
+import { MONTHS, WEEKDAYS, toISODate, formatDateDisplay, buildMonthGrid } from "../lib/calendar";
+import { CalendarIcon } from "./icons";
 
-const CalendarIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4 shrink-0">
-    <rect x="3" y="5" width="18" height="16" rx="2" />
-    <path d="M8 3v4M16 3v4M3 10h18" />
-  </svg>
-);
 const ChevronLeft = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4">
     <path d="M15 18l-6-6 6-6" />
@@ -17,46 +14,31 @@ const ChevronRight = () => (
   </svg>
 );
 
-const MONTHS = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
-const WEEKDAYS = ["L", "M", "M", "J", "V", "S", "D"];
-
-function pad(n: number) {
-  return String(n).padStart(2, "0");
-}
-function toISODate(d: Date) {
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
-function formatDisplay(iso: string) {
-  const [y, m, d] = iso.split("-").map(Number);
-  if (!y || !m || !d) return "";
-  return `${pad(d)}/${pad(m)}/${y}`;
-}
-
 /**
  * Calendario propio (reemplaza <input type="date">, cuyo popup nativo no respeta el tema
  * de la app). `value`/`onChange` trabajan con fecha en formato "YYYY-MM-DD".
  */
-export function DatePicker({ value, onChange, className = "" }: { value: string; onChange: (iso: string) => void; className?: string }) {
+export function DatePicker({
+  value,
+  onChange,
+  className = "",
+  error,
+}: {
+  value: string;
+  onChange: (iso: string) => void;
+  className?: string;
+  /** Mensaje de validación propio (ej. "Campo obligatorio") - mismo patrón que Input. */
+  error?: string;
+}) {
   const [open, setOpen] = useState(false);
   const today = new Date();
   const selectedDate = value ? new Date(`${value}T00:00:00`) : null;
   const [viewYear, setViewYear] = useState((selectedDate ?? today).getFullYear());
   const [viewMonth, setViewMonth] = useState((selectedDate ?? today).getMonth());
   const rootRef = useRef<HTMLDivElement>(null);
+  useClickOutside(rootRef, () => setOpen(false));
 
-  useEffect(() => {
-    function onClickOutside(e: MouseEvent) {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener("mousedown", onClickOutside);
-    return () => document.removeEventListener("mousedown", onClickOutside);
-  }, []);
-
-  const firstOfMonth = new Date(viewYear, viewMonth, 1);
-  // Lunes = 0 ... Domingo = 6, para que la grilla arranque en lunes.
-  const leadingBlanks = (firstOfMonth.getDay() + 6) % 7;
-  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
-  const cells: (number | null)[] = [...Array(leadingBlanks).fill(null), ...Array.from({ length: daysInMonth }, (_, i) => i + 1)];
+  const cells = buildMonthGrid(viewYear, viewMonth);
 
   function changeMonth(delta: number) {
     let m = viewMonth + delta;
@@ -73,14 +55,19 @@ export function DatePicker({ value, onChange, className = "" }: { value: string;
   }
 
   return (
-    <div ref={rootRef} className={`relative ${className}`}>
+    <div className={`flex flex-col gap-1 ${className}`}>
+      <div ref={rootRef} className="relative">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center gap-2 rounded-md border border-slate-300 bg-slate-50 px-2.5 py-1.5 text-left text-sm text-slate-900 outline-none transition-colors focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+        className={`flex w-full items-center gap-2 rounded-md border bg-slate-50 px-2.5 py-2 text-left text-sm text-slate-900 outline-none transition-colors dark:bg-slate-800 dark:text-slate-100 ${
+          error
+            ? "border-red-400 focus:border-red-500 focus:ring-2 focus:ring-red-500/30 dark:border-red-500/70"
+            : "border-slate-300 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30 dark:border-slate-700"
+        }`}
       >
         <span className="text-slate-400 dark:text-slate-500"><CalendarIcon /></span>
-        <span className={value ? "" : "text-slate-400 dark:text-slate-500"}>{value ? formatDisplay(value) : "dd/mm/aaaa"}</span>
+        <span className={value ? "" : "text-slate-400 dark:text-slate-500"}>{value ? formatDateDisplay(value) : "dd/mm/aaaa"}</span>
       </button>
 
       {open && (
@@ -122,6 +109,8 @@ export function DatePicker({ value, onChange, className = "" }: { value: string;
           </div>
         </div>
       )}
+      </div>
+      {error && <span className="text-xs text-red-600 dark:text-red-400">{error}</span>}
     </div>
   );
 }

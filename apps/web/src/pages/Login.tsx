@@ -1,19 +1,19 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, ApiError } from "../lib/api";
 import { useAuthStore, type SessionUser } from "../store/auth";
 import { PinPad } from "../components/PinPad";
 import { Logo } from "../components/Logo";
 import { ThemeToggle } from "../components/ThemeToggle";
-import { getStoredDeviceId, storeDevice } from "../lib/device";
+import { getStoredDeviceId, getStoredDeviceRefreshToken, getBiometricCredentialId, storeDevice } from "../lib/device";
+import { isBiometricAvailable, verifyBiometricCredential } from "../lib/webauthn";
 
 type LoginResponse = { accessToken: string; user: SessionUser };
 type SetupPinResponse = { deviceId: string; deviceRefreshToken: string };
 
-const MailIcon = () => (
+const PhoneIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
-    <rect x="3" y="5" width="18" height="14" rx="2" />
-    <path d="m3.5 6 8.5 7 8.5-7" />
+    <path d="M6.6 10.8c1.4 2.8 3.8 5.2 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25c1.1.37 2.3.57 3.5.57a1 1 0 0 1 1 1V20a1 1 0 0 1-1 1C10.6 21 3 13.4 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.2.2 2.4.57 3.5a1 1 0 0 1-.25 1Z" />
   </svg>
 );
 const LockIcon = () => (
@@ -35,25 +35,65 @@ const InviteIcon = () => (
     <path d="M17 3v4M15 5h4" />
   </svg>
 );
+const FingerprintIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
+    <path d="M12 11c1 0 1.8.8 1.8 1.8v2.4c0 2-1.1 3.6-2.3 4.8" />
+    <path d="M7.5 17.2c-.8-1.2-1.3-2.6-1.3-4.1a5.8 5.8 0 0 1 11.6 0c0 .5 0 1.1-.1 1.6" />
+    <path d="M4.5 9.5A7.5 7.5 0 0 1 19 11.2" />
+    <path d="M9.8 19.5c-1.8-1.4-2.8-3.5-2.8-5.9" />
+  </svg>
+);
 
 export default function Login() {
   const [mode, setMode] = useState<"password" | "pin">("pin");
-  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [pin, setPin] = useState("");
   const [setupToken, setSetupToken] = useState("");
   const [needsSetup, setNeedsSetup] = useState(!getStoredDeviceId());
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [bioAvailable, setBioAvailable] = useState(false);
   const setSession = useAuthStore((s) => s.setSession);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const credentialId = getBiometricCredentialId();
+    const deviceId = getStoredDeviceId();
+    const refreshToken = getStoredDeviceRefreshToken();
+    if (!credentialId || !deviceId || !refreshToken) return;
+    isBiometricAvailable().then(setBioAvailable);
+  }, []);
+
+  async function submitBiometric() {
+    setError(null);
+    const credentialId = getBiometricCredentialId();
+    const deviceId = getStoredDeviceId();
+    const deviceRefreshToken = getStoredDeviceRefreshToken();
+    if (!credentialId || !deviceId || !deviceRefreshToken) return;
+    setLoading(true);
+    try {
+      const verified = await verifyBiometricCredential(credentialId);
+      if (!verified) {
+        setError("No se pudo verificar tu huella/rostro");
+        return;
+      }
+      const res = await api.post<LoginResponse>("/auth/session/refresh", { deviceId, deviceRefreshToken });
+      setSession(res.accessToken, res.user);
+      navigate("/");
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "No se pudo iniciar sesión");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   async function submitPassword(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setLoading(true);
     try {
-      const res = await api.post<LoginResponse>("/auth/login-password", { email, password });
+      const res = await api.post<LoginResponse>("/auth/login-password", { phone, password });
       setSession(res.accessToken, res.user);
       navigate("/");
     } catch (err) {
@@ -130,6 +170,25 @@ export default function Login() {
           {/* Separador entre el encabezado (logo/nombre/tagline) y las acciones */}
           <div className="my-6 h-px w-full bg-slate-200 dark:bg-slate-800" />
 
+          {bioAvailable && (
+            <>
+              <button
+                type="button"
+                onClick={submitBiometric}
+                disabled={loading}
+                className={`mb-4 flex items-center justify-center gap-2 ${primaryButtonClass}`}
+              >
+                <FingerprintIcon />
+                {loading ? "Verificando..." : "Ingresar con Face ID / huella"}
+              </button>
+              <div className="mb-4 flex items-center gap-3 text-xs uppercase tracking-wide text-slate-400 dark:text-slate-500">
+                <span className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
+                o
+                <span className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
+              </div>
+            </>
+          )}
+
           <div className="mb-6 flex items-center justify-center gap-3 text-sm">
             <button
               type="button"
@@ -150,15 +209,15 @@ export default function Login() {
                 setError(null);
               }}
             >
-              Email / Contraseña
+              Teléfono / Contraseña
             </button>
           </div>
 
           {mode === "password" && (
             <form onSubmit={submitPassword} className="flex flex-col gap-3">
               <div className="relative">
-                <span className={`pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 ${secondaryTextClass}`}><MailIcon /></span>
-                <input type="email" required placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} className={inputClass} />
+                <span className={`pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 ${secondaryTextClass}`}><PhoneIcon /></span>
+                <input type="tel" required placeholder="Teléfono (ej. +593991234567)" value={phone} onChange={(e) => setPhone(e.target.value)} className={inputClass} />
               </div>
               <div className="relative">
                 <span className={`pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 ${secondaryTextClass}`}><LockIcon /></span>

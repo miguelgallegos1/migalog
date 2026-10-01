@@ -1,117 +1,202 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "../lib/api";
 import { Button } from "../components/Button";
+import { Input } from "../components/Input";
+import { Modal } from "../components/Modal";
+import { RowActionsMenu } from "../components/RowActionsMenu";
+import { PlusIcon, SearchIcon, CheckIcon, XIcon, CheckCircleIcon, AlertIcon } from "../components/icons";
 
-type Tenant = { id: string; name: string; slug: string; active: boolean };
+type Tenant = { id: string; ruc: string; name: string; slug: string; active: boolean; adminPhone: string | null };
+type FormState = { ruc: string; name: string; adminFirstName: string; adminLastName: string; adminPhone: string };
+type FieldErrors = Partial<Record<keyof FormState, string>>;
+type EditFormState = { ruc: string; name: string };
+type EditFieldErrors = Partial<Record<keyof EditFormState, string>>;
+
+const EMPTY_FORM: FormState = { ruc: "", name: "", adminFirstName: "", adminLastName: "", adminPhone: "" };
+
+/** Validación propia (reemplaza el globo nativo del navegador que dispara el atributo `required`). */
+function validate(form: FormState): FieldErrors {
+  const errors: FieldErrors = {};
+  if (!form.ruc.trim()) errors.ruc = "Campo obligatorio";
+  if (!form.name.trim()) errors.name = "Campo obligatorio";
+  if (!form.adminFirstName.trim()) errors.adminFirstName = "Campo obligatorio";
+  if (!form.adminLastName.trim()) errors.adminLastName = "Campo obligatorio";
+  if (!form.adminPhone.trim()) errors.adminPhone = "Campo obligatorio";
+  return errors;
+}
+
+function validateEdit(form: EditFormState): EditFieldErrors {
+  const errors: EditFieldErrors = {};
+  if (!form.ruc.trim()) errors.ruc = "Campo obligatorio";
+  if (!form.name.trim()) errors.name = "Campo obligatorio";
+  return errors;
+}
 
 /** Pantalla exclusiva de super_admin: alta de nuevas empresas (tenants) y activar/desactivar las existentes. */
 export default function Tenants() {
   const queryClient = useQueryClient();
-  const [name, setName] = useState("");
-  const [slug, setSlug] = useState("");
-  const [adminName, setAdminName] = useState("");
-  const [adminEmail, setAdminEmail] = useState("");
+  const [modalOpen, setModalOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [form, setForm] = useState<FormState>(EMPTY_FORM);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [error, setError] = useState<string | null>(null);
   const [lastSetupToken, setLastSetupToken] = useState<string | null>(null);
 
   const { data: tenants, isLoading } = useQuery({ queryKey: ["tenants"], queryFn: () => api.get<Tenant[]>("/tenants") });
 
+  const filteredTenants = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return tenants ?? [];
+    return (tenants ?? []).filter((t) => t.name.toLowerCase().includes(q) || t.ruc.toLowerCase().includes(q));
+  }, [tenants, search]);
+
+  function setField<K extends keyof FormState>(key: K, value: string) {
+    setForm((prev) => ({ ...prev, [key]: value }));
+    setFieldErrors((prev) => (prev[key] ? { ...prev, [key]: undefined } : prev));
+  }
+
+  function openModal() {
+    setForm(EMPTY_FORM);
+    setFieldErrors({});
+    setError(null);
+    setLastSetupToken(null);
+    setModalOpen(true);
+  }
+
+  function closeModal() {
+    setModalOpen(false);
+  }
+
   const create = useMutation({
     // El backend crea el tenant Y su primer admin_empresa en un solo paso, devolviendo el
     // setupToken de una sola vez - acá lo mostramos para poder probar sin tener email real
     // conectado (en producción se lo mandaría al admin por correo, no se vería en pantalla).
-    mutationFn: () => api.post<{ setupToken: string }>("/tenants", { name, slug, adminName, adminEmail }),
+    mutationFn: () =>
+      api.post<{ setupToken: string }>("/tenants", {
+        ruc: form.ruc,
+        name: form.name,
+        adminName: `${form.adminFirstName.trim()} ${form.adminLastName.trim()}`,
+        adminPhone: form.adminPhone,
+      }),
     onSuccess: (res) => {
       setLastSetupToken(res.setupToken);
       setError(null);
-      setName("");
-      setSlug("");
-      setAdminName("");
-      setAdminEmail("");
       queryClient.invalidateQueries({ queryKey: ["tenants"] });
     },
     onError: (err) => setError(err instanceof ApiError ? err.message : "No se pudo crear la empresa"),
   });
+
+  function submit(e: React.FormEvent) {
+    e.preventDefault();
+    const errors = validate(form);
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) return;
+    create.mutate();
+  }
 
   const toggleActive = useMutation({
     mutationFn: ({ id, active }: { id: string; active: boolean }) => api.patch(`/tenants/${id}/active`, { active }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["tenants"] }),
   });
 
-  const inputClass = "rounded-md border border-slate-300 bg-slate-50 px-2 py-1.5 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100";
+  // --- Editar (RUC / razón social) ---
+  const [editTarget, setEditTarget] = useState<Tenant | null>(null);
+  const [editForm, setEditForm] = useState<EditFormState>({ ruc: "", name: "" });
+  const [editFieldErrors, setEditFieldErrors] = useState<EditFieldErrors>({});
+  const [editError, setEditError] = useState<string | null>(null);
+
+  function openEdit(t: Tenant) {
+    setEditTarget(t);
+    setEditForm({ ruc: t.ruc, name: t.name });
+    setEditFieldErrors({});
+    setEditError(null);
+  }
+
+  function setEditField<K extends keyof EditFormState>(key: K, value: string) {
+    setEditForm((prev) => ({ ...prev, [key]: value }));
+    setEditFieldErrors((prev) => (prev[key] ? { ...prev, [key]: undefined } : prev));
+  }
+
+  const update = useMutation({
+    mutationFn: () => api.patch(`/tenants/${editTarget!.id}`, editForm),
+    onSuccess: () => {
+      setEditTarget(null);
+      queryClient.invalidateQueries({ queryKey: ["tenants"] });
+    },
+    onError: (err) => setEditError(err instanceof ApiError ? err.message : "No se pudo guardar"),
+  });
+
+  function submitEdit(e: React.FormEvent) {
+    e.preventDefault();
+    const errors = validateEdit(editForm);
+    setEditFieldErrors(errors);
+    if (Object.keys(errors).length > 0) return;
+    update.mutate();
+  }
+
+  // --- Eliminar ---
+  const [deleteTarget, setDeleteTarget] = useState<Tenant | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const remove = useMutation({
+    mutationFn: (id: string) => api.delete(`/tenants/${id}`),
+    onSuccess: () => {
+      setDeleteTarget(null);
+      setDeleteError(null);
+      queryClient.invalidateQueries({ queryKey: ["tenants"] });
+    },
+    onError: (err) => setDeleteError(err instanceof ApiError ? err.message : "No se pudo eliminar"),
+  });
 
   return (
     <div className="flex flex-col gap-4">
-      <div>
-        <h1 className="text-xl font-bold text-slate-900 dark:text-white">Empresas proveedoras</h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400">
-          Como dueño de la plataforma, acá creás las <strong>empresas proveedoras</strong> (empresas de transporte) que van a usar MigaLog. Cada una nace con su propio administrador.
-        </p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-bold text-slate-900 dark:text-white">Empresas proveedoras</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400">Empresas de transporte que usan MigaLog.</p>
+        </div>
+        <Button onClick={openModal} className="flex items-center gap-1.5">
+          <PlusIcon /> Crear empresa
+        </Button>
       </div>
 
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          create.mutate();
-        }}
-        className="flex flex-wrap items-end gap-2 rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900/60"
-      >
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-slate-500 dark:text-slate-400">Nombre de la empresa</label>
-          <input value={name} onChange={(e) => setName(e.target.value)} required className={inputClass} />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-slate-500 dark:text-slate-400">Slug</label>
-          <input value={slug} onChange={(e) => setSlug(e.target.value)} required placeholder="mi-empresa" className={inputClass} />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-slate-500 dark:text-slate-400">Nombre del admin</label>
-          <input value={adminName} onChange={(e) => setAdminName(e.target.value)} required className={inputClass} />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-slate-500 dark:text-slate-400">Email del admin</label>
-          <input type="email" value={adminEmail} onChange={(e) => setAdminEmail(e.target.value)} required className={inputClass} />
-        </div>
-        <Button type="submit" disabled={create.isPending}>
-          Crear empresa
-        </Button>
-      </form>
-
-      {error && <p className="text-sm text-red-500 dark:text-red-400">{error}</p>}
-      {lastSetupToken && (
-        <div className="rounded-lg bg-slate-100 p-3 text-xs text-slate-700 dark:bg-slate-800/70 dark:text-slate-300">
-          Empresa creada. Token de configuración de contraseña para el admin (en producción va por email):
-          <div className="mt-1 break-all rounded bg-white p-2 font-mono dark:bg-slate-900">{lastSetupToken}</div>
-        </div>
-      )}
+      <div className="relative max-w-xs">
+        <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500"><SearchIcon /></span>
+        <Input preserveCase placeholder="Buscar por nombre o RUC..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8" />
+      </div>
 
       <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900/60">
         {isLoading ? (
           <p className="p-4 text-sm text-slate-500 dark:text-slate-400">Cargando...</p>
+        ) : filteredTenants.length === 0 ? (
+          <p className="p-4 text-sm text-slate-500 dark:text-slate-400">{search ? "Sin resultados." : "Sin empresas todavía."}</p>
         ) : (
           <table className="w-full text-left text-sm">
             <thead className="border-b border-slate-200 text-xs uppercase text-slate-500 dark:border-slate-800 dark:text-slate-400">
               <tr>
-                <th className="px-4 py-2 font-medium">Nombre</th>
-                <th className="px-4 py-2 font-medium">Slug</th>
+                <th className="px-4 py-2 font-medium">RUC</th>
+                <th className="px-4 py-2 font-medium">Razón social</th>
+                <th className="px-4 py-2 font-medium">Teléfono</th>
                 <th className="px-4 py-2 font-medium">Activa</th>
                 <th className="px-4 py-2 font-medium"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-              {tenants?.map((t) => (
+              {filteredTenants.map((t) => (
                 <tr key={t.id}>
+                  <td className="px-4 py-2 font-mono text-slate-500 dark:text-slate-400">{t.ruc}</td>
                   <td className="px-4 py-2 text-slate-700 dark:text-slate-300">{t.name}</td>
-                  <td className="px-4 py-2 font-mono text-slate-500 dark:text-slate-400">{t.slug}</td>
+                  <td className="px-4 py-2 text-slate-700 dark:text-slate-300">{t.adminPhone ?? "-"}</td>
                   <td className="px-4 py-2 text-slate-700 dark:text-slate-300">{t.active ? "Sí" : "No"}</td>
                   <td className="px-4 py-2">
-                    <button
-                      onClick={() => toggleActive.mutate({ id: t.id, active: !t.active })}
-                      className="text-xs font-semibold text-amber-600 hover:text-amber-500 dark:text-amber-400 dark:hover:text-amber-300"
-                    >
-                      {t.active ? "Desactivar" : "Activar"}
-                    </button>
+                    <RowActionsMenu
+                      actions={[
+                        { label: "Editar", onClick: () => openEdit(t) },
+                        { label: t.active ? "Desactivar" : "Activar", onClick: () => toggleActive.mutate({ id: t.id, active: !t.active }) },
+                        { label: "Eliminar", danger: true, onClick: () => { setDeleteError(null); setDeleteTarget(t); } },
+                      ]}
+                    />
                   </td>
                 </tr>
               ))}
@@ -119,6 +204,99 @@ export default function Tenants() {
           </table>
         )}
       </div>
+
+      {modalOpen && (
+        <Modal title={lastSetupToken ? "Empresa creada" : "Crear empresa proveedora"} onClose={closeModal}>
+          {lastSetupToken ? (
+            <div className="flex flex-col items-center gap-3 text-center">
+              <span className="text-emerald-500"><CheckCircleIcon /></span>
+              <p className="text-sm text-slate-700 dark:text-slate-300">
+                Empresa creada. Link de invitación para que el administrador configure su contraseña:
+              </p>
+              <div className="w-full break-all rounded-lg bg-slate-100 p-2 text-left text-xs font-mono text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                {lastSetupToken}
+              </div>
+              <Button onClick={closeModal} className="mt-1 flex items-center gap-1.5">
+                <CheckIcon /> Cerrar
+              </Button>
+            </div>
+          ) : (
+            <form noValidate onSubmit={submit} className="flex flex-col gap-5">
+              <div>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Datos de la empresa</h3>
+                <div className="mt-2 grid grid-cols-2 gap-3">
+                  <Input label="RUC" placeholder="Ingrese el RUC" value={form.ruc} onChange={(e) => setField("ruc", e.target.value)} error={fieldErrors.ruc} />
+                  <Input label="Razón social" placeholder="Ingrese la razón social" value={form.name} onChange={(e) => setField("name", e.target.value)} error={fieldErrors.name} />
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Administrador</h3>
+                <div className="mt-2 flex flex-col gap-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <Input label="Nombres" placeholder="Ingrese los nombres" value={form.adminFirstName} onChange={(e) => setField("adminFirstName", e.target.value)} error={fieldErrors.adminFirstName} />
+                    <Input label="Apellidos" placeholder="Ingrese los apellidos" value={form.adminLastName} onChange={(e) => setField("adminLastName", e.target.value)} error={fieldErrors.adminLastName} />
+                  </div>
+                  <Input label="Teléfono (WhatsApp)" type="tel" placeholder="Ej. +593991234567" value={form.adminPhone} onChange={(e) => setField("adminPhone", e.target.value)} error={fieldErrors.adminPhone} />
+                </div>
+              </div>
+
+              {error && <p className="text-sm text-red-500 dark:text-red-400">{error}</p>}
+
+              <div className="flex items-center justify-end gap-2 border-t border-slate-100 pt-4 dark:border-slate-800">
+                <Button type="button" variant="secondary" onClick={closeModal} className="flex items-center gap-1.5">
+                  <XIcon /> Cancelar
+                </Button>
+                <Button type="submit" disabled={create.isPending} className="flex items-center gap-1.5">
+                  <CheckIcon /> {create.isPending ? "Guardando..." : "Guardar"}
+                </Button>
+              </div>
+            </form>
+          )}
+        </Modal>
+      )}
+
+      {editTarget && (
+        <Modal title="Editar empresa" onClose={() => setEditTarget(null)}>
+          <form noValidate onSubmit={submitEdit} className="flex flex-col gap-5">
+            <div className="grid grid-cols-2 gap-3">
+              <Input label="RUC" placeholder="Ingrese el RUC" value={editForm.ruc} onChange={(e) => setEditField("ruc", e.target.value)} error={editFieldErrors.ruc} />
+              <Input label="Razón social" placeholder="Ingrese la razón social" value={editForm.name} onChange={(e) => setEditField("name", e.target.value)} error={editFieldErrors.name} />
+            </div>
+
+            {editError && <p className="text-sm text-red-500 dark:text-red-400">{editError}</p>}
+
+            <div className="flex items-center justify-end gap-2 border-t border-slate-100 pt-4 dark:border-slate-800">
+              <Button type="button" variant="secondary" onClick={() => setEditTarget(null)} className="flex items-center gap-1.5">
+                <XIcon /> Cancelar
+              </Button>
+              <Button type="submit" disabled={update.isPending} className="flex items-center gap-1.5">
+                <CheckIcon /> {update.isPending ? "Guardando..." : "Guardar"}
+              </Button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {deleteTarget && (
+        <Modal title="Eliminar empresa" onClose={() => setDeleteTarget(null)}>
+          <div className="flex flex-col items-center gap-3 text-center">
+            <span className="text-red-500"><AlertIcon className="h-10 w-10" /></span>
+            <p className="text-sm text-slate-700 dark:text-slate-300">
+              ¿Eliminar <strong>{deleteTarget.name}</strong>? Esta acción no se puede deshacer.
+            </p>
+            {deleteError && <p className="text-sm text-red-500 dark:text-red-400">{deleteError}</p>}
+            <div className="mt-1 flex items-center gap-2">
+              <Button type="button" variant="secondary" onClick={() => setDeleteTarget(null)} className="flex items-center gap-1.5">
+                <XIcon /> Cancelar
+              </Button>
+              <Button type="button" variant="danger" disabled={remove.isPending} onClick={() => remove.mutate(deleteTarget.id)} className="flex items-center gap-1.5">
+                <CheckIcon /> {remove.isPending ? "Eliminando..." : "Eliminar"}
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

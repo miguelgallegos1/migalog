@@ -9,6 +9,7 @@ import { driverRoutes } from "./routes/drivers.js";
 import { vehicleRoutes } from "./routes/vehicles.js";
 import { routeRoutes } from "./routes/routes.js";
 import { routeTemplateRoutes } from "./routes/route-templates.js";
+import { siteRoutes } from "./routes/sites.js";
 import { whatsappRoutes } from "./routes/whatsapp.js";
 import { RouteServiceError } from "./lib/route-service.js";
 
@@ -32,6 +33,7 @@ app.route("/drivers", driverRoutes);
 app.route("/vehicles", vehicleRoutes);
 app.route("/routes", routeRoutes);
 app.route("/route-templates", routeTemplateRoutes);
+app.route("/sites", siteRoutes);
 app.route("/whatsapp", whatsappRoutes);
 
 app.onError((err, c) => {

@@ -7,6 +7,7 @@ import {
   integer,
   doublePrecision,
   pgEnum,
+  date,
 } from "drizzle-orm/pg-core";
 /**
  * Los valores de estos enums están duplicados de @migalog/shared (en vez de importarlos)
@@ -17,7 +18,10 @@ import {
  *
  * Jerarquía de 2 niveles: nivel 1 (admin_empresa/coordinador/conductor) pertenece a la
  * empresa proveedora (el tenant); nivel 2 (cliente_admin/cliente_coordinador/cliente_jefe/
- * cliente_visualizador/cliente_solicitante) pertenece a una empresa cliente (`clients`).
+ * cliente_visualizador/cliente_solicitante/cliente_conductor) pertenece a una empresa
+ * cliente (`clients`). cliente_conductor existe porque la empresa cliente puede tener
+ * flota propia (ver `vehicles`/`drivers`, ambas con "clientId" opcional) y despachar sus
+ * propias rutas sin pasar por la proveedora.
  */
 export const roleEnum = pgEnum("role", [
   "super_admin",
@@ -29,6 +33,7 @@ export const roleEnum = pgEnum("role", [
   "cliente_jefe",
   "cliente_visualizador",
   "cliente_solicitante",
+  "cliente_conductor",
 ]);
 export const routeStatusEnum = pgEnum("route_status", [
   "CREADO",
@@ -48,6 +53,9 @@ export const routeTemplateStatusEnum = pgEnum("route_template_status", ["pendien
 
 export const tenants = pgTable("tenants", {
   id: uuid("id").primaryKey().defaultRandom(),
+  ruc: text("ruc").notNull().unique(),
+  // "name" guarda la razón social - no se renombra la columna para no arrastrar otra
+  // migración de rename, pero en toda la UI se etiqueta como "Razón social".
   name: text("name").notNull(),
   slug: text("slug").notNull().unique(),
   active: boolean("active").notNull().default(true),
@@ -58,7 +66,10 @@ export const tenants = pgTable("tenants", {
 export const clients = pgTable("clients", {
   id: uuid("id").primaryKey().defaultRandom(),
   tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
+  ruc: text("ruc").notNull().unique(),
+  // "name" guarda la razón social, mismo criterio que en "tenants".
   name: text("name").notNull(),
+  active: boolean("active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -73,8 +84,9 @@ export const users = pgTable("users", {
   clientId: uuid("client_id").references(() => clients.id),
   role: roleEnum("role").notNull(),
   name: text("name").notNull(),
-  email: text("email").unique(),
-  phone: text("phone").unique(),
+  // Identificador único para login (password o PIN): no hay email en ningún lado de la app,
+  // todo el contacto/alta es por WhatsApp.
+  phone: text("phone").notNull().unique(),
   passwordHash: text("password_hash"),
   pinHash: text("pin_hash"),
   active: boolean("active").notNull().default(true),
@@ -101,8 +113,20 @@ export const devices = pgTable("devices", {
 export const drivers = pgTable("drivers", {
   id: uuid("id").primaryKey().defaultRandom(),
   tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
+  // null = conductor de la empresa proveedora (como siempre); si tiene valor, es un
+  // conductor PROPIO de esa empresa cliente (rol cliente_conductor), que esa empresa puede
+  // asignar a sus propias rutas sin depender de la proveedora.
+  clientId: uuid("client_id").references(() => clients.id),
   userId: uuid("user_id").notNull().references(() => users.id),
-  licenseNumber: text("license_number").notNull(),
+  // Camión fijo que maneja este conductor - al confirmar una ruta solo se elige el
+  // conductor, el camión sale de acá (ver route-service.ts confirmRoute). Nullable: un
+  // conductor recién creado puede no tener camión asignado todavía.
+  vehicleId: uuid("vehicle_id").references(() => vehicles.id),
+  // No se controla por número de licencia sino por vigencia: pasada la fecha, ese
+  // conductor (con su camión) deja de poder asignarse a una ruta hasta renovarla.
+  licenseExpiresAt: date("license_expires_at").notNull(),
+  licensePhotoFront: text("license_photo_front"),
+  licensePhotoBack: text("license_photo_back"),
   status: text("status").notNull().default("activo"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -110,9 +134,38 @@ export const drivers = pgTable("drivers", {
 export const vehicles = pgTable("vehicles", {
   id: uuid("id").primaryKey().defaultRandom(),
   tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
+  // Mismo criterio que drivers.clientId: null = camión de la flota de la proveedora, con
+  // valor = camión propio de esa empresa cliente.
+  clientId: uuid("client_id").references(() => clients.id),
   plate: text("plate").notNull(),
-  capacityKg: integer("capacity_kg"),
+  brandModel: text("brand_model"),
+  capacityM3: doublePrecision("capacity_m3"),
+  // "propio" (de quien lo registra) o "alquilado" a un tercero - la proveedora puede
+  // completar camiones propios con camiones alquilados de otra empresa de transporte.
+  ownership: text("ownership").notNull().default("propio"),
+  ownerCompany: text("owner_company"),
   status: text("status").notNull().default("activo"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * Sitios: lugares reutilizables (con la empresa a la que pertenecen, para facturación) que
+ * arma la empresa cliente - se eligen como origen/parada/destino/sitio de facturación al
+ * crear una ruta del catálogo, en vez de tipear dirección/coordenadas cada vez.
+ */
+export const sites = pgTable("sites", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
+  clientId: uuid("client_id").notNull().references(() => clients.id),
+  // Solo "name"/"company" son obligatorios en el alta - "contactPhone" y lo de abajo quedan
+  // libres para completarse después sin bloquear el flujo simple.
+  name: text("name").notNull(),
+  company: text("company").notNull(),
+  contactPhone: text("contact_phone"),
+  address: text("address"),
+  lat: doublePrecision("lat"),
+  lng: doublePrecision("lng"),
+  active: boolean("active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -120,30 +173,43 @@ export const vehicles = pgTable("vehicles", {
  * Catálogo de rutas frecuentes de la empresa proveedora (tarifario): un atajo, no una
  * restricción - al crear una solicitud se puede elegir una de acá para autocompletar
  * origen/destino/precio/tiempo estimado, o seguir cargando una ruta a medida como siempre.
- * Lo mantiene admin_empresa/coordinador (son quienes conocen sus tiempos y ponen el precio).
+ * Origen/paradas/destino/sitio de facturación se eligen de la tabla "sites" (ver arriba) -
+ * "name" queda armado solo como "ORIGEN-PARADA1-PARADA2-DESTINO" (ver route-templates.ts).
  */
 export const routeTemplates = pgTable("route_templates", {
   id: uuid("id").primaryKey().defaultRandom(),
   tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
-  category: text("category"), // agrupador libre, ej. la ciudad de origen ("CAYAMBE")
-  name: text("name").notNull(), // ej. "ADUANA-CAYAMBE"
-  originLabel: text("origin_label").notNull(),
-  originAddress: text("origin_address").notNull(),
-  originLat: doublePrecision("origin_lat").notNull(),
-  originLng: doublePrecision("origin_lng").notNull(),
-  destinationLabel: text("destination_label").notNull(),
-  destinationAddress: text("destination_address").notNull(),
-  destinationLat: doublePrecision("destination_lat").notNull(),
-  destinationLng: doublePrecision("destination_lng").notNull(),
+  name: text("name").notNull(),
+  effectiveDate: date("effective_date").notNull(),
+  billingSiteId: uuid("billing_site_id").notNull().references(() => sites.id),
+  originSiteId: uuid("origin_site_id").notNull().references(() => sites.id),
+  destinationSiteId: uuid("destination_site_id").notNull().references(() => sites.id),
   price: integer("price"),
   estimatedMinutes: integer("estimated_minutes"),
-  // "aprobada" = visible en el selector de la solicitud. Cuando la crea admin_empresa/
-  // coordinador queda aprobada directo (es su tarifario); cuando la PROPONE una empresa
-  // cliente (porque la ruta que necesita no está en la lista) queda "pendiente" hasta que
-  // la empresa proveedora la revisa y fija el precio acordado (aprobar) o la rechaza.
+  // Se calcula solo en el frontend (Mapbox Directions) cuando origen/paradas/destino tienen
+  // GPS cargado - si algún punto no tiene coordenadas, queda null (no bloquea la creación).
+  distanceKm: doublePrecision("distance_km"),
+  // "aprobada" = visible en el selector de la solicitud. Siempre nace "pendiente" (la
+  // propone una empresa cliente) hasta que la empresa proveedora fija el precio acordado
+  // (aprobar) o la rechaza - la proveedora nunca la crea directo (ver route-templates.ts).
   status: routeTemplateStatusEnum("status").notNull().default("aprobada"),
   proposedByClientId: uuid("proposed_by_client_id").references(() => clients.id),
+  // La empresa proveedora puede desactivar una ruta ya aprobada (deja de ofrecerse en el
+  // selector de nuevas solicitudes) sin borrar el histórico - distinto de "rechazada", que
+  // es la respuesta a una propuesta que nunca se aprobó.
+  active: boolean("active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** Paradas intermedias de un ítem del catálogo (ej. "PINTAG" entre San Antonio y Tabacundo). */
+export const routeTemplateStops = pgTable("route_template_stops", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  routeTemplateId: uuid("route_template_id").notNull().references(() => routeTemplates.id),
+  siteId: uuid("site_id").notNull().references(() => sites.id),
+  sequenceOrder: integer("sequence_order").notNull(),
+  // Valor propio de esta parada (ej. costo adicional por ese desvío) - independiente del
+  // "price" total de la ruta en routeTemplates, que sigue siendo el valor acordado global.
+  price: integer("price"),
 });
 
 export const routes = pgTable("routes", {
@@ -173,15 +239,33 @@ export const routeStops = pgTable("route_stops", {
   address: text("address").notNull(),
   lat: doublePrecision("lat").notNull(),
   lng: doublePrecision("lng").notNull(),
-  // Detalle de carga de esta parada (ej. "8 UNI - Cajas encargos") - opcional, no toda
-  // parada mueve carga (ej. una parada que solo es punto de control).
-  cargoQuantity: integer("cargo_quantity"),
-  cargoUnit: text("cargo_unit"),
-  cargoDescription: text("cargo_description"),
   plannedAt: timestamp("planned_at", { withTimezone: true }),
   arrivedAt: timestamp("arrived_at", { withTimezone: true }),
   departedAt: timestamp("departed_at", { withTimezone: true }),
   status: stopStatusEnum("status").notNull().default("pendiente"),
+  // Tiempo estimado de carga/descarga en este punto (minutos) - se define al pedir la ruta,
+  // no es parte fija del catálogo (ver route_cargo_items para el detalle de qué se mueve).
+  serviceMinutes: integer("service_minutes").notNull().default(0),
+});
+
+/**
+ * Manifiesto de carga de la ruta: cada línea es "esto se recoge en tal parada y se deja en
+ * tal otra" (ej. 19 pallets que se cargan en el origen y se bajan en una parada intermedia,
+ * mientras el resto de la carga sigue hasta el destino) - no va pegado a una sola parada
+ * porque en el origen suele cargarse más de una cosa distinta a la vez, cada una con su
+ * propio punto de entrega dentro del itinerario. Es lo que el conductor ve en cada parada
+ * para saber qué recoger/dejar ahí (ver RouteDetail.tsx).
+ */
+export const routeCargoItems = pgTable("route_cargo_items", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  routeId: uuid("route_id").notNull().references(() => routes.id),
+  quantity: integer("quantity").notNull(),
+  unit: text("unit").notNull(),
+  description: text("description").notNull(),
+  pickupStopId: uuid("pickup_stop_id").notNull().references(() => routeStops.id),
+  dropoffStopId: uuid("dropoff_stop_id").notNull().references(() => routeStops.id),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const routeStatusHistory = pgTable("route_status_history", {
@@ -200,6 +284,9 @@ export const routeIncidents = pgTable("route_incidents", {
   routeId: uuid("route_id").notNull().references(() => routes.id),
   severity: text("severity").notNull(),
   description: text("description").notNull(),
+  // Una sola foto (no dos como la licencia del conductor): alcanza para documentar el
+  // estado del incidente al momento de reportarlo.
+  photo: text("photo"),
   active: boolean("active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   resolvedAt: timestamp("resolved_at", { withTimezone: true }),

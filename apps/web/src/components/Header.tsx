@@ -1,5 +1,5 @@
 import { useAuthStore } from "../store/auth";
-import { ThemeToggle } from "./ThemeToggle";
+import { UserMenu } from "./UserMenu";
 import { Logo } from "./Logo";
 
 // Hamburguesa rellena de barras redondeadas - más "viva" que un ícono de solo trazo.
@@ -11,33 +11,12 @@ const MenuIcon = () => (
   </svg>
 );
 
-// Nombre para mostrar de cada rol, chico y debajo del nombre de la app.
-export const ROLE_LABELS: Record<string, string> = {
-  super_admin: "Dueño de la plataforma",
-  // Nivel 1 - empresa proveedora
-  admin_empresa: "Admin. empresa proveedora",
-  coordinador: "Coordinador (proveedora)",
-  conductor: "Conductor",
-  // Nivel 2 - empresa cliente
-  cliente_admin: "Admin. empresa cliente",
-  cliente_coordinador: "Coordinador (cliente)",
-  cliente_jefe: "Jefe (reportes)",
-  cliente_visualizador: "Visualizador",
-  cliente_solicitante: "Solicitante",
-};
-
-function initialsOf(name: string): string {
-  const parts = name.trim().split(/\s+/);
-  const first = parts[0]?.[0] ?? "";
-  const last = parts.length > 1 ? parts[parts.length - 1]?.[0] ?? "" : "";
-  return (first + last).toUpperCase();
-}
-
 /**
- * Header superior de toda la app. En desktop muestra la marca (logo + nombre + rol chico
- * debajo) a la izquierda; en mobile esa marca se esconde de acá y vive arriba del sidebar
- * (ver Layout.tsx) - en su lugar se muestra el botón de panel lateral para abrir el menú.
- * A la derecha, siempre: tema e identidad de quien está logueado.
+ * Header superior de toda la app. En desktop muestra la marca (logo + nombre) a la
+ * izquierda; en mobile esa marca se esconde de acá y vive arriba del sidebar (ver
+ * Layout.tsx) - en su lugar se muestra el botón de panel lateral para abrir el menú.
+ * A la derecha, siempre: el menú de sesión (nombre, rol, empresa, tema, cerrar sesión -
+ * ver UserMenu.tsx).
  */
 export function Header({ onToggleMenu }: { onToggleMenu: () => void }) {
   const user = useAuthStore((s) => s.user);
@@ -55,25 +34,11 @@ export function Header({ onToggleMenu }: { onToggleMenu: () => void }) {
         </button>
         <div className="hidden items-center gap-2.5 md:flex">
           <Logo size={28} />
-          <div className="leading-tight">
-            <div className="text-lg font-bold text-slate-900 dark:text-white">MigaLog</div>
-            <div className="text-[10px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">
-              {ROLE_LABELS[user.role]}
-            </div>
-          </div>
+          <div className="text-lg font-bold text-slate-900 dark:text-white">MigaLog</div>
         </div>
       </div>
 
-      <div className="flex items-center gap-3">
-        <ThemeToggle />
-        <div className="h-6 w-px bg-slate-200 dark:bg-slate-800" />
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-400 text-xs font-bold text-slate-900">
-            {initialsOf(user.name)}
-          </div>
-          <span className="hidden text-sm font-medium text-slate-800 dark:text-slate-200 sm:block">{user.name}</span>
-        </div>
-      </div>
+      <UserMenu />
     </header>
   );
 }

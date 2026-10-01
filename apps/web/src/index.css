@@ -11,3 +11,41 @@ body,
 body {
   @apply bg-slate-50 text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100;
 }
+
+/* Saca las flechas de subir/bajar nativas de <input type="number"> en toda la app - el
+   chrome del sistema operativo no combina con el resto de los controles (ver Input.tsx). */
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Scroll discreto (una línea fina, sin flechas ni fondo de riel) en toda la app - global y no
+   una clase a pegar contenedor por contenedor, así cualquier panel con overflow (sidebar,
+   contenido principal, modales, tablas, selects/dropdowns) queda igual sin acordarse de
+   taggearlo. El scrollbar nativo del sistema ahí se ve como un elemento de UI suelto, no
+   parte del diseño. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(203 213 225) transparent; /* slate-300 */
+}
+.dark * {
+  scrollbar-color: rgb(51 65 85) transparent; /* slate-700 */
+}
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background-color: rgb(203 213 225);
+  border-radius: 9999px;
+}
+.dark *::-webkit-scrollbar-thumb {
+  background-color: rgb(51 65 85);
+}

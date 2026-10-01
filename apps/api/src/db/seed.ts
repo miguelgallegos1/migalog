@@ -10,7 +10,7 @@ async function main() {
   console.log("Sembrando datos demo...");
 
   const tenant = firstOrThrow(
-    await db.insert(tenants).values({ name: "Transportes Demo S.A.", slug: "demo" }).returning()
+    await db.insert(tenants).values({ ruc: "0801199901234", name: "Transportes Demo S.A.", slug: "demo" }).returning()
   );
 
   const superAdmin = firstOrThrow(
@@ -20,7 +20,7 @@ async function main() {
         tenantId: null,
         role: "super_admin",
         name: "Dueño MigaLog",
-        email: "dueno@migalog.dev",
+        phone: "+50588880099",
         passwordHash: await hashSecret("Demo1234!"),
       })
       .returning()
@@ -30,14 +30,14 @@ async function main() {
   const adminEmpresa = firstOrThrow(
     await db
       .insert(users)
-      .values({ tenantId: tenant.id, role: "admin_empresa", name: "Admin Demo", email: "admin@demo.migalog.dev", passwordHash: await hashSecret("Demo1234!") })
+      .values({ tenantId: tenant.id, role: "admin_empresa", name: "Admin Demo", phone: "+50588880000", passwordHash: await hashSecret("Demo1234!") })
       .returning()
   );
 
   const coordinador = firstOrThrow(
     await db
       .insert(users)
-      .values({ tenantId: tenant.id, role: "coordinador", name: "Coordinador Demo", email: "coordinador@demo.migalog.dev", passwordHash: await hashSecret("Demo1234!") })
+      .values({ tenantId: tenant.id, role: "coordinador", name: "Coordinador Demo", phone: "+50588880004", passwordHash: await hashSecret("Demo1234!") })
       .returning()
   );
 
@@ -50,34 +50,34 @@ async function main() {
 
   // --- Nivel 2: empresa cliente (varios usuarios, cada uno con su propio rol) ---
   const client = firstOrThrow(
-    await db.insert(clients).values({ tenantId: tenant.id, name: "Comercial El Sol" }).returning()
+    await db.insert(clients).values({ tenantId: tenant.id, ruc: "0801199905678", name: "Comercial El Sol" }).returning()
   );
 
   const clienteAdmin = firstOrThrow(
     await db
       .insert(users)
-      .values({ tenantId: tenant.id, clientId: client.id, role: "cliente_admin", name: "Admin Cliente Demo", email: "admin@cliente-demo.dev", passwordHash: await hashSecret("Demo1234!") })
+      .values({ tenantId: tenant.id, clientId: client.id, role: "cliente_admin", name: "Admin Cliente Demo", phone: "+50588880010", passwordHash: await hashSecret("Demo1234!") })
       .returning()
   );
 
   const clienteCoordinador = firstOrThrow(
     await db
       .insert(users)
-      .values({ tenantId: tenant.id, clientId: client.id, role: "cliente_coordinador", name: "Coordinador Cliente Demo", email: "coordinador@cliente-demo.dev", passwordHash: await hashSecret("Demo1234!") })
+      .values({ tenantId: tenant.id, clientId: client.id, role: "cliente_coordinador", name: "Coordinador Cliente Demo", phone: "+50588880011", passwordHash: await hashSecret("Demo1234!") })
       .returning()
   );
 
   const clienteJefe = firstOrThrow(
     await db
       .insert(users)
-      .values({ tenantId: tenant.id, clientId: client.id, role: "cliente_jefe", name: "Jefe Cliente Demo", email: "jefe@cliente-demo.dev", passwordHash: await hashSecret("Demo1234!") })
+      .values({ tenantId: tenant.id, clientId: client.id, role: "cliente_jefe", name: "Jefe Cliente Demo", phone: "+50588880012", passwordHash: await hashSecret("Demo1234!") })
       .returning()
   );
 
   const clienteVisualizador = firstOrThrow(
     await db
       .insert(users)
-      .values({ tenantId: tenant.id, clientId: client.id, role: "cliente_visualizador", name: "Visualizador Cliente Demo", email: "visualizador@cliente-demo.dev", passwordHash: await hashSecret("Demo1234!") })
+      .values({ tenantId: tenant.id, clientId: client.id, role: "cliente_visualizador", name: "Visualizador Cliente Demo", phone: "+50588880013", passwordHash: await hashSecret("Demo1234!") })
       .returning()
   );
 
@@ -88,9 +88,14 @@ async function main() {
       .returning()
   );
 
-  await db.insert(vehicles).values({ tenantId: tenant.id, plate: "M-123456", capacityKg: 5000 }).returning();
+  const vehicle = firstOrThrow(
+    await db.insert(vehicles).values({ tenantId: tenant.id, plate: "M-123456", brandModel: "Hino 300", capacityM3: 25 }).returning()
+  );
 
-  await db.insert(drivers).values({ tenantId: tenant.id, userId: conductorUser.id, licenseNumber: "LIC-0001" }).returning();
+  await db
+    .insert(drivers)
+    .values({ tenantId: tenant.id, userId: conductorUser.id, vehicleId: vehicle.id, licenseExpiresAt: "2027-12-31" })
+    .returning();
 
   const route = firstOrThrow(
     await db
@@ -137,20 +142,20 @@ async function main() {
   const conductorSetupToken = await signSetupToken(conductorUser.id);
   const solicitanteSetupToken = await signSetupToken(solicitanteUser.id);
 
-  const passwordUsers: { role: Role; email: string | null }[] = [
-    { role: superAdmin.role, email: superAdmin.email },
-    { role: adminEmpresa.role, email: adminEmpresa.email },
-    { role: coordinador.role, email: coordinador.email },
-    { role: clienteAdmin.role, email: clienteAdmin.email },
-    { role: clienteCoordinador.role, email: clienteCoordinador.email },
-    { role: clienteJefe.role, email: clienteJefe.email },
-    { role: clienteVisualizador.role, email: clienteVisualizador.email },
+  const passwordUsers: { role: Role; phone: string | null }[] = [
+    { role: superAdmin.role, phone: superAdmin.phone },
+    { role: adminEmpresa.role, phone: adminEmpresa.phone },
+    { role: coordinador.role, phone: coordinador.phone },
+    { role: clienteAdmin.role, phone: clienteAdmin.phone },
+    { role: clienteCoordinador.role, phone: clienteCoordinador.phone },
+    { role: clienteJefe.role, phone: clienteJefe.phone },
+    { role: clienteVisualizador.role, phone: clienteVisualizador.phone },
   ];
 
   console.log("\nListo. Credenciales de prueba (todas las de password: Demo1234!):\n");
   console.log(`Tenant: ${tenant.name} (slug: ${tenant.slug}) | Empresa cliente: ${client.name}\n`);
   for (const u of passwordUsers) {
-    console.log(`${u.role.padEnd(22)} -> email: ${u.email}`);
+    console.log(`${u.role.padEnd(22)} -> teléfono: ${u.phone}`);
   }
   console.log(`\nconductor (API directo)          -> POST /auth/login-pin { deviceId: "${conductorDevice.id}", pin: "123456" }`);
   console.log(`cliente_solicitante (API directo) -> POST /auth/login-pin { deviceId: "${solicitanteDevice.id}", pin: "654321" }`);

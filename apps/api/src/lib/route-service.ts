@@ -1,11 +1,11 @@
-import { and, eq, ne, notInArray } from "drizzle-orm";
+import { and, desc, eq, isNull, ne, notInArray } from "drizzle-orm";
 import { db } from "../db/client.js";
-import { routes, routeStops, routeStatusHistory, routeIncidents, locationPings } from "../db/schema.js";
+import { routes, routeStops, routeCargoItems, routeStatusHistory, routeIncidents, locationPings, drivers, vehicles, users } from "../db/schema.js";
 import { canTransition, TERMINAL_ROUTE_STATUSES, type RouteStatus, type ActorType } from "@migalog/shared";
 import { generateRouteCode } from "./ids.js";
 import { publishTenantEvent } from "./realtime.js";
 import { firstOrThrow } from "./db-helpers.js";
-import type { StopInput } from "@migalog/shared";
+import type { StopInput, CargoItemInput } from "@migalog/shared";
 
 export type Actor = { type: ActorType; userId?: string };
 
@@ -64,8 +64,19 @@ async function transition(
 
 export async function createRouteRequest(
   tenantId: string,
-  input: { clientId: string; stops: StopInput[]; notes?: string; scheduledAt?: string }
+  input: { clientId: string; stops: StopInput[]; cargoItems: CargoItemInput[]; notes?: string; scheduledAt?: string }
 ) {
+  // El manifiesto referencia paradas por posición en el array "stops" que se está creando
+  // ahora mismo (todavía no tienen id) - se valida acá, antes de escribir nada.
+  for (const item of input.cargoItems) {
+    if (item.pickupStopIndex >= input.stops.length || item.dropoffStopIndex >= input.stops.length) {
+      throw new RouteServiceError("El manifiesto de carga referencia una parada que no existe en el itinerario");
+    }
+    if (item.dropoffStopIndex <= item.pickupStopIndex) {
+      throw new RouteServiceError("El punto de descarga de cada carga debe ir después de su punto de carga en el itinerario");
+    }
+  }
+
   const route = firstOrThrow(
     await db
       .insert(routes)
@@ -92,12 +103,28 @@ export async function createRouteRequest(
         lat: s.lat,
         lng: s.lng,
         plannedAt: s.plannedAt ? new Date(s.plannedAt) : undefined,
-        cargoQuantity: s.cargoQuantity,
-        cargoUnit: s.cargoUnit,
-        cargoDescription: s.cargoDescription,
+        serviceMinutes: s.serviceMinutes ?? 0,
       }))
     )
     .returning();
+
+  const cargoRows =
+    input.cargoItems.length > 0
+      ? await db
+          .insert(routeCargoItems)
+          .values(
+            input.cargoItems.map((item) => ({
+              routeId: route.id,
+              quantity: item.quantity,
+              unit: item.unit.toUpperCase(),
+              description: item.description.toUpperCase(),
+              pickupStopId: stopRows[item.pickupStopIndex]!.id,
+              dropoffStopId: stopRows[item.dropoffStopIndex]!.id,
+              notes: item.notes,
+            }))
+          )
+          .returning()
+      : [];
 
   await db.insert(routeStatusHistory).values({
     routeId: route.id,
@@ -107,7 +134,7 @@ export async function createRouteRequest(
   });
 
   await publishTenantEvent(tenantId, "route.created", { routeId: route.id, code: route.code });
-  return { route, stops: stopRows };
+  return { route, stops: stopRows, cargoItems: cargoRows };
 }
 
 export async function listActiveRoutes(tenantId: string) {
@@ -118,12 +145,18 @@ export async function listActiveRoutes(tenantId: string) {
     .orderBy(routes.createdAt);
 }
 
+// Tope defensivo: "routes" crece sin fin con el uso (una fila por envío logístico de toda la
+// vida de la cuenta) y este endpoint no pagina todavía - sin límite, una empresa con meses de
+// historial transfiere cada vez más JSON por celular solo para abrir la pantalla de Historial.
+const ROUTE_HISTORY_LIMIT = 200;
+
 export async function listRouteHistory(tenantId: string) {
   return db
     .select()
     .from(routes)
     .where(and(eq(routes.tenantId, tenantId)))
-    .orderBy(routes.createdAt);
+    .orderBy(desc(routes.createdAt))
+    .limit(ROUTE_HISTORY_LIMIT);
 }
 
 const DELAY_GRACE_MINUTES = 20;
@@ -149,7 +182,8 @@ export async function getRouteWithStops(tenantId: string, routeId: string) {
     .from(routeStops)
     .where(eq(routeStops.routeId, routeId))
     .orderBy(routeStops.sequenceOrder);
-  return { route, stops };
+  const cargoItems = await db.select().from(routeCargoItems).where(eq(routeCargoItems.routeId, routeId));
+  return { route, stops, cargoItems };
 }
 
 export const approveRoute = (tenantId: string, routeId: string, actor: Actor, note?: string) =>
@@ -158,13 +192,32 @@ export const approveRoute = (tenantId: string, routeId: string, actor: Actor, no
 export const rejectRoute = (tenantId: string, routeId: string, actor: Actor, note?: string) =>
   transition(tenantId, routeId, "RECHAZADO", actor, {}, note);
 
-export const confirmRoute = (
-  tenantId: string,
-  routeId: string,
-  driverId: string,
-  vehicleId: string,
-  actor: Actor
-) => transition(tenantId, routeId, "CONFIRMADO", actor, { driverId, vehicleId });
+/**
+ * Confirmar = elegir SOLO el conductor; el camión sale de drivers.vehicleId (el que ese
+ * conductor maneja fijo), no se vuelve a elegir acá. `scopeClientId` es quién está
+ * confirmando: null cuando es la proveedora (debe ser un conductor de SU flota, sin
+ * clientId), o el id de la empresa cliente cuando confirma con flota propia - en ambos
+ * casos el conductor elegido tiene que pertenecer exactamente a esa flota, no a otra.
+ */
+export async function confirmRoute(tenantId: string, routeId: string, driverId: string, actor: Actor, scopeClientId: string | null = null) {
+  const scopeCondition = scopeClientId ? eq(drivers.clientId, scopeClientId) : isNull(drivers.clientId);
+  const [row] = await db
+    .select({ driver: drivers, userActive: users.active })
+    .from(drivers)
+    .innerJoin(users, eq(users.id, drivers.userId))
+    .where(and(eq(drivers.id, driverId), eq(drivers.tenantId, tenantId), scopeCondition));
+  if (!row) throw new RouteServiceError("Conductor no encontrado", 404);
+  const { driver, userActive } = row;
+  if (driver.status !== "activo" || !userActive) throw new RouteServiceError("Este conductor está desactivado", 400);
+  if (!driver.vehicleId) throw new RouteServiceError("Este conductor no tiene un camión asignado", 400);
+  if (driver.licenseExpiresAt < new Date().toISOString().slice(0, 10)) {
+    throw new RouteServiceError("La licencia de este conductor está vencida - no se puede asignar a una ruta", 400);
+  }
+  const [vehicle] = await db.select({ id: vehicles.id, status: vehicles.status }).from(vehicles).where(and(eq(vehicles.id, driver.vehicleId), eq(vehicles.tenantId, tenantId)));
+  if (!vehicle) throw new RouteServiceError("El camión de este conductor ya no existe", 404);
+  if (vehicle.status !== "activo") throw new RouteServiceError("El camión de este conductor no está activo (en mantenimiento o inactivo)", 400);
+  return transition(tenantId, routeId, "CONFIRMADO", actor, { driverId, vehicleId: vehicle.id });
+}
 
 /**
  * Marcar "parqueado" ES llegar al origen, así que de paso marcamos completada la primera
@@ -232,10 +285,11 @@ export async function reportIncident(
   tenantId: string,
   routeId: string,
   severity: "baja" | "media" | "alta",
-  description: string
+  description: string,
+  photo?: string
 ) {
   await requireRoute(tenantId, routeId);
-  const incident = firstOrThrow(await db.insert(routeIncidents).values({ routeId, severity, description }).returning());
+  const incident = firstOrThrow(await db.insert(routeIncidents).values({ routeId, severity, description, photo }).returning());
   await db.update(routes).set({ hasIncident: true }).where(eq(routes.id, routeId));
   await publishTenantEvent(tenantId, "route.incident", { routeId, severity, description });
   return incident;
@@ -253,7 +307,7 @@ export async function checkAvailability(
   excludeRouteId?: string
 ) {
   const driverBusy = await db
-    .select()
+    .select({ id: routes.id })
     .from(routes)
     .where(
       and(
@@ -264,7 +318,7 @@ export async function checkAvailability(
       )
     );
   const vehicleBusy = await db
-    .select()
+    .select({ id: routes.id })
     .from(routes)
     .where(
       and(

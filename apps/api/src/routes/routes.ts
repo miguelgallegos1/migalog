@@ -11,8 +11,8 @@ import { requireAuth, requireTenant, requireRole, type AppVariables } from "../m
 import * as routeService from "../lib/route-service.js";
 import { param } from "../lib/http.js";
 import { db } from "../db/client.js";
-import { clients, routeStops } from "../db/schema.js";
-import { and, eq } from "drizzle-orm";
+import { clients, routeStops, drivers } from "../db/schema.js";
+import { and, eq, inArray } from "drizzle-orm";
 
 export const routeRoutes = new Hono<{ Variables: AppVariables }>();
 routeRoutes.use("*", requireAuth, requireTenant());
@@ -41,12 +41,16 @@ routeRoutes.get("/", async (c) => {
   const ownClientId = scopedToOwnClient(c);
   const visible = ownClientId ? rows.filter((r) => r.clientId === ownClientId) : rows;
 
-  const withDelay = await Promise.all(
-    visible.map(async (route) => {
-      const stops = await db.select().from(routeStops).where(eq(routeStops.routeId, route.id));
-      return { ...route, delayed: routeService.isRouteDelayed(stops) };
-    })
-  );
+  // Antes era una consulta por ruta (N+1) - se trae todo de una sola vez y se agrupa en
+  // memoria, mismo criterio que attachSites() en route-templates.ts.
+  const allStops = visible.length > 0 ? await db.select().from(routeStops).where(inArray(routeStops.routeId, visible.map((r) => r.id))) : [];
+  const stopsByRoute = new Map<string, typeof allStops>();
+  for (const stop of allStops) {
+    const list = stopsByRoute.get(stop.routeId);
+    if (list) list.push(stop);
+    else stopsByRoute.set(stop.routeId, [stop]);
+  }
+  const withDelay = visible.map((route) => ({ ...route, delayed: routeService.isRouteDelayed(stopsByRoute.get(route.id) ?? []) }));
   return c.json(withDelay.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()));
 });
 
@@ -58,9 +62,11 @@ routeRoutes.get("/:id", async (c) => {
   return c.json({ ...data, delayed: routeService.isRouteDelayed(data.stops) });
 });
 
+// Solo la empresa cliente solicita rutas (super_admin queda como override de plataforma) -
+// admin_empresa/coordinador (nivel 1) no crean ni solicitan, entran recién en CONFIRMADO.
 routeRoutes.post(
   "/",
-  requireRole("cliente_admin", "cliente_coordinador", "cliente_solicitante", "admin_empresa", "super_admin"),
+  requireRole("cliente_admin", "cliente_coordinador", "cliente_solicitante", "super_admin"),
   async (c) => {
     const tenantId = c.get("tenantId") as string;
     const role = c.get("role");
@@ -98,6 +104,19 @@ async function requireOwnRouteAsClient(c: AppContext, tenantId: string, routeId:
   }
 }
 
+/**
+ * Un conductor solo puede operar SU PROPIA ruta asignada (route.driverId), no cualquier ruta
+ * del tenant - sin esto, cualquier cuenta con rol "conductor" podría marcar parqueado/salida/
+ * llegada o mandar pings de GPS sobre la ruta de otro conductor.
+ */
+async function requireAssignedDriver(c: AppContext, tenantId: string, routeId: string) {
+  const { route } = await routeService.getRouteWithStops(tenantId, routeId);
+  const [driver] = await db.select({ id: drivers.id }).from(drivers).where(and(eq(drivers.tenantId, tenantId), eq(drivers.userId, c.get("userId") as string)));
+  if (!driver || route.driverId !== driver.id) {
+    throw new routeService.RouteServiceError("No autorizado: no sos el conductor asignado a esta ruta", 403);
+  }
+}
+
 routeRoutes.post("/:id/approve", requireRole("cliente_admin", "cliente_coordinador", "super_admin"), async (c) => {
   const tenantId = c.get("tenantId") as string;
   const id = param(c, "id");
@@ -115,48 +134,92 @@ routeRoutes.post("/:id/reject", requireRole("cliente_admin", "cliente_coordinado
   return c.json(route);
 });
 
-routeRoutes.post("/:id/confirm", requireRole("admin_empresa", "coordinador", "super_admin"), async (c) => {
+/**
+ * Confirmar = asignar conductor (el camión sale de ese conductor, ver confirmRoute()). Lo
+ * hace la proveedora con su propia flota (como siempre) O la empresa cliente dueña de la
+ * ruta, cuando despacha con flota propia (camión + conductor propios, roles cliente_admin/
+ * cliente_coordinador + cliente_conductor) - cada una solo puede elegir conductores de SU
+ * propia flota, nunca de la otra.
+ */
+routeRoutes.post(
+  "/:id/confirm",
+  requireRole("admin_empresa", "coordinador", "super_admin", "cliente_admin", "cliente_coordinador"),
+  async (c) => {
+    const tenantId = c.get("tenantId") as string;
+    const id = param(c, "id");
+    const role = c.get("role");
+    const { driverId } = confirmRouteSchema.parse(await c.req.json());
+    let scopeClientId: string | null = null;
+    if (isClientRole(role)) {
+      await requireOwnRouteAsClient(c, tenantId, id);
+      scopeClientId = c.get("clientId") as string;
+    }
+    const route = await routeService.confirmRoute(tenantId, id, driverId, actorFromContext(c), scopeClientId);
+    return c.json(route);
+  }
+);
+
+routeRoutes.post("/:id/park", requireRole("conductor", "cliente_conductor"), async (c) => {
   const tenantId = c.get("tenantId") as string;
-  const { driverId, vehicleId } = confirmRouteSchema.parse(await c.req.json());
-  const route = await routeService.confirmRoute(tenantId, param(c, "id"), driverId, vehicleId, actorFromContext(c));
+  const id = param(c, "id");
+  await requireAssignedDriver(c, tenantId, id);
+  const route = await routeService.parkRoute(tenantId, id, actorFromContext(c));
   return c.json(route);
 });
 
-routeRoutes.post("/:id/park", requireRole("conductor"), async (c) => {
+routeRoutes.post("/:id/depart", requireRole("conductor", "cliente_conductor"), async (c) => {
   const tenantId = c.get("tenantId") as string;
-  const route = await routeService.parkRoute(tenantId, param(c, "id"), actorFromContext(c));
+  const id = param(c, "id");
+  await requireAssignedDriver(c, tenantId, id);
+  const route = await routeService.departRoute(tenantId, id, actorFromContext(c));
   return c.json(route);
 });
 
-routeRoutes.post("/:id/depart", requireRole("conductor"), async (c) => {
+routeRoutes.post("/:id/stops/:stopId/arrive", requireRole("conductor", "cliente_conductor"), async (c) => {
   const tenantId = c.get("tenantId") as string;
-  const route = await routeService.departRoute(tenantId, param(c, "id"), actorFromContext(c));
+  const id = param(c, "id");
+  await requireAssignedDriver(c, tenantId, id);
+  const route = await routeService.arriveAtStop(tenantId, id, param(c, "stopId"), actorFromContext(c));
   return c.json(route);
 });
 
-routeRoutes.post("/:id/stops/:stopId/arrive", requireRole("conductor"), async (c) => {
+// Cancelar es decisión de la empresa cliente (es su pedido), igual que aprobar/rechazar -
+// la empresa proveedora no cancela pedidos ajenos, solo los ejecuta.
+routeRoutes.post("/:id/cancel", requireRole("cliente_admin", "cliente_coordinador", "super_admin"), async (c) => {
   const tenantId = c.get("tenantId") as string;
-  const route = await routeService.arriveAtStop(tenantId, param(c, "id"), param(c, "stopId"), actorFromContext(c));
-  return c.json(route);
-});
-
-routeRoutes.post("/:id/cancel", async (c) => {
-  const tenantId = c.get("tenantId") as string;
+  const id = param(c, "id");
+  await requireOwnRouteAsClient(c, tenantId, id);
   const { reason } = z.object({ reason: z.string().optional() }).parse(await c.req.json().catch(() => ({})));
-  const route = await routeService.cancelRoute(tenantId, param(c, "id"), actorFromContext(c), reason);
+  const route = await routeService.cancelRoute(tenantId, id, actorFromContext(c), reason);
   return c.json(route);
 });
 
-routeRoutes.post("/:id/location", requireRole("conductor"), async (c) => {
+routeRoutes.post("/:id/location", requireRole("conductor", "cliente_conductor"), async (c) => {
   const tenantId = c.get("tenantId") as string;
+  const id = param(c, "id");
+  await requireAssignedDriver(c, tenantId, id);
   const { lat, lng } = locationPingSchema.parse(await c.req.json());
-  const ping = await routeService.recordLocationPing(tenantId, param(c, "id"), lat, lng);
+  const ping = await routeService.recordLocationPing(tenantId, id, lat, lng);
   return c.json(ping, 201);
 });
 
-routeRoutes.post("/:id/incidents", async (c) => {
-  const tenantId = c.get("tenantId") as string;
-  const { severity, description } = reportIncidentSchema.parse(await c.req.json());
-  const incident = await routeService.reportIncident(tenantId, param(c, "id"), severity, description);
-  return c.json(incident, 201);
-});
+/**
+ * Reportar incidencia: el conductor asignado (mientras maneja) o quien gestiona la ruta -
+ * la proveedora (nivel 1, siempre) o la empresa cliente dueña de esa ruta puntual.
+ */
+routeRoutes.post(
+  "/:id/incidents",
+  requireRole("conductor", "cliente_conductor", "admin_empresa", "coordinador", "super_admin", "cliente_admin", "cliente_coordinador"),
+  async (c) => {
+    const tenantId = c.get("tenantId") as string;
+    const id = param(c, "id");
+    const role = c.get("role");
+    if (role === "conductor" || role === "cliente_conductor") await requireAssignedDriver(c, tenantId, id);
+    else if (isClientRole(role)) await requireOwnRouteAsClient(c, tenantId, id);
+    // admin_empresa/coordinador/super_admin: sin restricción adicional, ya tienen acceso a
+    // todo el tenant como en el resto de los endpoints de gestión.
+    const { severity, description, photo } = reportIncidentSchema.parse(await c.req.json());
+    const incident = await routeService.reportIncident(tenantId, id, severity, description, photo);
+    return c.json(incident, 201);
+  }
+);

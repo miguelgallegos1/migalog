@@ -35,10 +35,15 @@ export default function ControlCenter() {
   // Últimas posiciones GPS conocidas por ruta, recibidas en vivo (no vienen del fetch inicial).
   const [livePositions, setLivePositions] = useState<Record<string, { lat: number; lng: number }>>({});
 
+  // Con Ably configurado, cualquier cambio ya invalida el query en tiempo real (ver abajo) -
+  // el polling de 15s quedaría corriendo en paralelo sin necesidad, duplicando el mismo
+  // fetch en una conexión móvil. Se deja como red de respaldo bien espaciada, y solo se
+  // vuelve el único mecanismo (cada 15s) cuando no hay key de Ably configurada.
+  const ablyConfigured = Boolean(import.meta.env.VITE_ABLY_API_KEY);
   const { data: routes, isLoading } = useQuery({
     queryKey: ["routes", "active"],
     queryFn: () => api.get<RouteRow[]>("/routes"),
-    refetchInterval: 15000,
+    refetchInterval: ablyConfigured ? 60000 : 15000,
   });
 
   useTenantChannel(tenantId, (eventName, data) => {

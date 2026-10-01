@@ -45,12 +45,3 @@ export function requireTenant() {
     await next();
   };
 }
-
-/** Exige que el usuario pertenezca a una empresa cliente (todo rol cliente_*). */
-export function requireOwnClient() {
-  return async (c: Context, next: Next) => {
-    const clientId = c.get("clientId") as string | null;
-    if (!clientId) return c.json({ error: "Falta contexto de empresa cliente" }, 400);
-    await next();
-  };
-}

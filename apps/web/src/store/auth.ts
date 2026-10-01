@@ -8,6 +8,10 @@ export type SessionUser = {
   role: Role;
   tenantId: string | null;
   clientId: string | null;
+  // Nombre de la empresa proveedora (nivel 1) o cliente (nivel 2) a la que pertenece - para
+  // mostrarlo en el menú de sesión sin pedirlo aparte.
+  tenantName: string | null;
+  clientName: string | null;
 };
 
 type AuthState = {

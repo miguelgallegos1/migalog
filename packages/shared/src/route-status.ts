@@ -14,10 +14,6 @@ export type RouteStatus = (typeof ROUTE_STATUSES)[number];
 
 export const TERMINAL_ROUTE_STATUSES: RouteStatus[] = ["TERMINADO", "CANCELADO", "RECHAZADO"];
 
-export function isTerminalStatus(status: RouteStatus): boolean {
-  return TERMINAL_ROUTE_STATUSES.includes(status);
-}
-
 /** Transiciones válidas desde cada estado. CANCELADO se puede alcanzar desde cualquier estado no terminal. */
 export const ROUTE_TRANSITIONS: Record<RouteStatus, RouteStatus[]> = {
   CREADO: ["APROBADO", "RECHAZADO", "CANCELADO"],

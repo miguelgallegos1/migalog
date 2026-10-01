@@ -1,17 +1,39 @@
 import Map, { Marker, Popup } from "react-map-gl";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import "mapbox-gl/dist/mapbox-gl.css";
-import { useThemeStore } from "../store/theme";
 
 export type MapMarker = { id: string; lat: number; lng: number; label: string };
 
-const DEFAULT_CENTER = { latitude: 12.1364, longitude: -86.2514 }; // Managua, como fallback
+// Si no hay ningún camión activo con GPS todavía, en vez de abrir en una ciudad fija (quedó
+// de pruebas en Managua, no tiene nada que ver con dónde opera cada empresa) se centra en la
+// ubicación real de quien mira el panel - cada empresa ve SU zona, no la de otra.
+const WORLD_VIEW = { latitude: 0, longitude: 0, zoom: 1.5 };
 
 /** Mapa de rastreo en tiempo real. Sin VITE_MAPBOX_TOKEN configurado, muestra un aviso en vez de romper. */
 export function RoutesMap({ markers }: { markers: MapMarker[] }) {
   const [selected, setSelected] = useState<MapMarker | null>(null);
   const token = import.meta.env.VITE_MAPBOX_TOKEN;
-  const theme = useThemeStore((s) => s.theme);
+  const first = markers[0];
+
+  const [geoCenter, setGeoCenter] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [geoResolved, setGeoResolved] = useState(false);
+
+  useEffect(() => {
+    // Ya hay un camión para centrar - ni hace falta pedir geolocalización.
+    if (first || typeof navigator === "undefined" || !navigator.geolocation) {
+      setGeoResolved(true);
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setGeoCenter({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
+        setGeoResolved(true);
+      },
+      () => setGeoResolved(true),
+      { timeout: 5000 }
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [!!first]);
 
   if (!token) {
     return (
@@ -25,20 +47,27 @@ export function RoutesMap({ markers }: { markers: MapMarker[] }) {
     );
   }
 
-  const first = markers[0];
+  if (!geoResolved) {
+    return <div className="h-full min-h-[320px] animate-pulse rounded-xl bg-slate-100 dark:bg-slate-900/40" />;
+  }
+
+  const view = first
+    ? { latitude: first.lat, longitude: first.lng, zoom: 11 }
+    : geoCenter
+      ? { latitude: geoCenter.latitude, longitude: geoCenter.longitude, zoom: 12 }
+      : WORLD_VIEW;
 
   return (
     <div className="h-full min-h-[320px] overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800">
       <Map
         mapboxAccessToken={token}
-        initialViewState={{
-          latitude: first?.lat ?? DEFAULT_CENTER.latitude,
-          longitude: first?.lng ?? DEFAULT_CENTER.longitude,
-          zoom: 11,
-        }}
+        initialViewState={view}
         style={{ width: "100%", height: "100%" }}
-        // El estilo del mapa sigue el tema de la app (claro/oscuro), en vez de quedar fijo en oscuro.
-        mapStyle={theme === "dark" ? "mapbox://styles/mapbox/dark-v11" : "mapbox://styles/mapbox/light-v11"}
+        // "Standard" (vector 3D con edificios/terreno/luz dinámica según la hora) se ve mucho
+        // más real que una foto satelital plana - los estilos "light"/"dark" son casi en
+        // escala de grises, pensados como fondo de UI, no un mapa real. Al ser vectorial (no
+        // raster satelital) de paso pesa menos para quien lo abre con datos móviles.
+        mapStyle="mapbox://styles/mapbox/standard"
       >
         {markers.map((m) => (
           <Marker key={m.id} latitude={m.lat} longitude={m.lng} onClick={() => setSelected(m)}>

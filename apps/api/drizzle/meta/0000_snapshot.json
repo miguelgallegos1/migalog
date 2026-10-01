@@ -1,5 +1,5 @@
 {
-  "id": "cbe2a229-862b-4180-bcf3-f937804665ab",
+  "id": "ca2d42bb-61f8-4856-8be3-9e4d4f45f868",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -124,11 +124,24 @@
           "primaryKey": false,
           "notNull": true
         },
+        "ruc": {
+          "name": "ruc",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
         "name": {
           "name": "name",
           "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "active": {
+          "name": "active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
         },
         "created_at": {
           "name": "created_at",
@@ -155,7 +168,15 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
+      "uniqueConstraints": {
+        "clients_ruc_unique": {
+          "name": "clients_ruc_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "ruc"
+          ]
+        }
+      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -261,17 +282,41 @@
           "primaryKey": false,
           "notNull": true
         },
+        "client_id": {
+          "name": "client_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
         "user_id": {
           "name": "user_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
         },
-        "license_number": {
-          "name": "license_number",
-          "type": "text",
+        "vehicle_id": {
+          "name": "vehicle_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "license_expires_at": {
+          "name": "license_expires_at",
+          "type": "date",
           "primaryKey": false,
           "notNull": true
+        },
+        "license_photo_front": {
+          "name": "license_photo_front",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "license_photo_back": {
+          "name": "license_photo_back",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         },
         "status": {
           "name": "status",
@@ -303,12 +348,38 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
+        "drivers_client_id_clients_id_fk": {
+          "name": "drivers_client_id_clients_id_fk",
+          "tableFrom": "drivers",
+          "tableTo": "clients",
+          "columnsFrom": [
+            "client_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
         "drivers_user_id_users_id_fk": {
           "name": "drivers_user_id_users_id_fk",
           "tableFrom": "drivers",
           "tableTo": "users",
           "columnsFrom": [
             "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "drivers_vehicle_id_vehicles_id_fk": {
+          "name": "drivers_vehicle_id_vehicles_id_fk",
+          "tableFrom": "drivers",
+          "tableTo": "vehicles",
+          "columnsFrom": [
+            "vehicle_id"
           ],
           "columnsTo": [
             "id"
@@ -368,6 +439,115 @@
           "tableTo": "routes",
           "columnsFrom": [
             "route_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.route_cargo_items": {
+      "name": "route_cargo_items",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "route_id": {
+          "name": "route_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "quantity": {
+          "name": "quantity",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "unit": {
+          "name": "unit",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pickup_stop_id": {
+          "name": "pickup_stop_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "dropoff_stop_id": {
+          "name": "dropoff_stop_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "route_cargo_items_route_id_routes_id_fk": {
+          "name": "route_cargo_items_route_id_routes_id_fk",
+          "tableFrom": "route_cargo_items",
+          "tableTo": "routes",
+          "columnsFrom": [
+            "route_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "route_cargo_items_pickup_stop_id_route_stops_id_fk": {
+          "name": "route_cargo_items_pickup_stop_id_route_stops_id_fk",
+          "tableFrom": "route_cargo_items",
+          "tableTo": "route_stops",
+          "columnsFrom": [
+            "pickup_stop_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "route_cargo_items_dropoff_stop_id_route_stops_id_fk": {
+          "name": "route_cargo_items_dropoff_stop_id_route_stops_id_fk",
+          "tableFrom": "route_cargo_items",
+          "tableTo": "route_stops",
+          "columnsFrom": [
+            "dropoff_stop_id"
           ],
           "columnsTo": [
             "id"
@@ -601,24 +781,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "cargo_quantity": {
-          "name": "cargo_quantity",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "cargo_unit": {
-          "name": "cargo_unit",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "cargo_description": {
-          "name": "cargo_description",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "planned_at": {
           "name": "planned_at",
           "type": "timestamp with time zone",
@@ -644,6 +806,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'pendiente'"
+        },
+        "service_minutes": {
+          "name": "service_minutes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
         }
       },
       "indexes": {},
@@ -654,6 +823,77 @@
           "tableTo": "routes",
           "columnsFrom": [
             "route_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.route_template_stops": {
+      "name": "route_template_stops",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "route_template_id": {
+          "name": "route_template_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "site_id": {
+          "name": "site_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sequence_order": {
+          "name": "sequence_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "price": {
+          "name": "price",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "route_template_stops_route_template_id_route_templates_id_fk": {
+          "name": "route_template_stops_route_template_id_route_templates_id_fk",
+          "tableFrom": "route_template_stops",
+          "tableTo": "route_templates",
+          "columnsFrom": [
+            "route_template_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "route_template_stops_site_id_sites_id_fk": {
+          "name": "route_template_stops_site_id_sites_id_fk",
+          "tableFrom": "route_template_stops",
+          "tableTo": "sites",
+          "columnsFrom": [
+            "site_id"
           ],
           "columnsTo": [
             "id"
@@ -685,63 +925,33 @@
           "primaryKey": false,
           "notNull": true
         },
-        "category": {
-          "name": "category",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "name": {
           "name": "name",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         },
-        "origin_label": {
-          "name": "origin_label",
-          "type": "text",
+        "effective_date": {
+          "name": "effective_date",
+          "type": "date",
           "primaryKey": false,
           "notNull": true
         },
-        "origin_address": {
-          "name": "origin_address",
-          "type": "text",
+        "billing_site_id": {
+          "name": "billing_site_id",
+          "type": "uuid",
           "primaryKey": false,
           "notNull": true
         },
-        "origin_lat": {
-          "name": "origin_lat",
-          "type": "double precision",
+        "origin_site_id": {
+          "name": "origin_site_id",
+          "type": "uuid",
           "primaryKey": false,
           "notNull": true
         },
-        "origin_lng": {
-          "name": "origin_lng",
-          "type": "double precision",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "destination_label": {
-          "name": "destination_label",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "destination_address": {
-          "name": "destination_address",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "destination_lat": {
-          "name": "destination_lat",
-          "type": "double precision",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "destination_lng": {
-          "name": "destination_lng",
-          "type": "double precision",
+        "destination_site_id": {
+          "name": "destination_site_id",
+          "type": "uuid",
           "primaryKey": false,
           "notNull": true
         },
@@ -754,6 +964,12 @@
         "estimated_minutes": {
           "name": "estimated_minutes",
           "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "distance_km": {
+          "name": "distance_km",
+          "type": "double precision",
           "primaryKey": false,
           "notNull": false
         },
@@ -771,6 +987,13 @@
           "primaryKey": false,
           "notNull": false
         },
+        "active": {
+          "name": "active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -787,6 +1010,45 @@
           "tableTo": "tenants",
           "columnsFrom": [
             "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "route_templates_billing_site_id_sites_id_fk": {
+          "name": "route_templates_billing_site_id_sites_id_fk",
+          "tableFrom": "route_templates",
+          "tableTo": "sites",
+          "columnsFrom": [
+            "billing_site_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "route_templates_origin_site_id_sites_id_fk": {
+          "name": "route_templates_origin_site_id_sites_id_fk",
+          "tableFrom": "route_templates",
+          "tableTo": "sites",
+          "columnsFrom": [
+            "origin_site_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "route_templates_destination_site_id_sites_id_fk": {
+          "name": "route_templates_destination_site_id_sites_id_fk",
+          "tableFrom": "route_templates",
+          "tableTo": "sites",
+          "columnsFrom": [
+            "destination_site_id"
           ],
           "columnsTo": [
             "id"
@@ -972,6 +1234,115 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.sites": {
+      "name": "sites",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "client_id": {
+          "name": "client_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "company": {
+          "name": "company",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "contact_phone": {
+          "name": "contact_phone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "address": {
+          "name": "address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lat": {
+          "name": "lat",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lng": {
+          "name": "lng",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "active": {
+          "name": "active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "sites_tenant_id_tenants_id_fk": {
+          "name": "sites_tenant_id_tenants_id_fk",
+          "tableFrom": "sites",
+          "tableTo": "tenants",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "sites_client_id_clients_id_fk": {
+          "name": "sites_client_id_clients_id_fk",
+          "tableFrom": "sites",
+          "tableTo": "clients",
+          "columnsFrom": [
+            "client_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.tenants": {
       "name": "tenants",
       "schema": "",
@@ -982,6 +1353,12 @@
           "primaryKey": true,
           "notNull": true,
           "default": "gen_random_uuid()"
+        },
+        "ruc": {
+          "name": "ruc",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
         },
         "name": {
           "name": "name",
@@ -1014,6 +1391,13 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
+        "tenants_ruc_unique": {
+          "name": "tenants_ruc_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "ruc"
+          ]
+        },
         "tenants_slug_unique": {
           "name": "tenants_slug_unique",
           "nullsNotDistinct": false,
@@ -1062,17 +1446,11 @@
           "primaryKey": false,
           "notNull": true
         },
-        "email": {
-          "name": "email",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "phone": {
           "name": "phone",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "password_hash": {
           "name": "password_hash",
@@ -1132,13 +1510,6 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "users_email_unique": {
-          "name": "users_email_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "email"
-          ]
-        },
         "users_phone_unique": {
           "name": "users_phone_unique",
           "nullsNotDistinct": false,
@@ -1168,15 +1539,40 @@
           "primaryKey": false,
           "notNull": true
         },
+        "client_id": {
+          "name": "client_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
         "plate": {
           "name": "plate",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         },
-        "capacity_kg": {
-          "name": "capacity_kg",
-          "type": "integer",
+        "brand_model": {
+          "name": "brand_model",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "capacity_m3": {
+          "name": "capacity_m3",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ownership": {
+          "name": "ownership",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'propio'"
+        },
+        "owner_company": {
+          "name": "owner_company",
+          "type": "text",
           "primaryKey": false,
           "notNull": false
         },
@@ -1203,6 +1599,19 @@
           "tableTo": "tenants",
           "columnsFrom": [
             "tenant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "vehicles_client_id_clients_id_fk": {
+          "name": "vehicles_client_id_clients_id_fk",
+          "tableFrom": "vehicles",
+          "tableTo": "clients",
+          "columnsFrom": [
+            "client_id"
           ],
           "columnsTo": [
             "id"
@@ -1239,7 +1648,8 @@
         "cliente_coordinador",
         "cliente_jefe",
         "cliente_visualizador",
-        "cliente_solicitante"
+        "cliente_solicitante",
+        "cliente_conductor"
       ]
     },
     "public.route_status": {
