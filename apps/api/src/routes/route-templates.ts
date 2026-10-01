@@ -32,7 +32,8 @@ async function attachSites(tenantId: string, rows: (typeof routeTemplates.$infer
     siteIds.add(r.destinationSiteId);
   });
   const allSites = await db.select().from(sites).where(and(eq(sites.tenantId, tenantId), inArray(sites.id, [...siteIds])));
-  const siteById = new Map(allSites.map((s) => [s.id, s]));
+  // "as const" en la tupla a propósito - ver comentario en drivers.ts.
+  const siteById = new Map(allSites.map((s) => [s.id, s] as const));
 
   const stopsRows = await db
     .select({
@@ -49,7 +50,7 @@ async function attachSites(tenantId: string, rows: (typeof routeTemplates.$infer
   // ids ya validados al crear/corregir la propuesta, sin este filtro no hay defensa en
   // profundidad si ese invariante se rompe en algún otro punto de entrada.
   const stopSites = stopSiteIds.size > 0 ? await db.select().from(sites).where(and(eq(sites.tenantId, tenantId), inArray(sites.id, [...stopSiteIds]))) : [];
-  const stopSiteById = new Map(stopSites.map((s) => [s.id, s]));
+  const stopSiteById = new Map(stopSites.map((s) => [s.id, s] as const));
 
   return rows.map((r) => ({
     ...r,
@@ -91,7 +92,7 @@ type ItineraryValidation =
 async function validateItinerary(tenantId: string, clientId: string, body: CreateRouteTemplateInput, excludeId?: string): Promise<ItineraryValidation> {
   const citedIds = [body.billingSiteId, body.originSiteId, body.destinationSiteId, ...body.stops.map((s) => s.siteId)];
   const foundSites = await db.select().from(sites).where(and(eq(sites.tenantId, tenantId), eq(sites.clientId, clientId), inArray(sites.id, citedIds)));
-  const siteById = new Map(foundSites.map((s) => [s.id, s]));
+  const siteById = new Map(foundSites.map((s) => [s.id, s] as const));
   if (foundSites.length !== new Set(citedIds).size) {
     return { ok: false, error: "Uno o más sitios no existen o no pertenecen a tu empresa", status: 400 };
   }

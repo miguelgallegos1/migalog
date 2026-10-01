@@ -186,7 +186,7 @@ export default function NewRouteRequest() {
     setCargoErrors((prev) =>
       prev.map((g, i) =>
         i === groupIndex
-          ? { rows: g.rows.map((re, ri) => (ri === rowIndex ? { ...re, ...Object.fromEntries(Object.keys(patch).map((k) => [k, undefined])) } : re)) }
+          ? { rows: g.rows.map((re, ri) => (ri === rowIndex ? { ...re, ...Object.fromEntries(Object.keys(patch).map((k) => [k, undefined] as const)) } : re)) }
           : g
       )
     );

@@ -114,7 +114,7 @@ export default function RouteCatalog() {
   // sitios - referencia estable también permite que el efecto de distancia (más abajo) la
   // use como dependencia sin recalcular de más.
   const siteOptions = useMemo(() => (sites ?? []).map((s) => ({ value: s.id, label: s.name })), [sites]);
-  const siteById = useMemo(() => new Map((sites ?? []).map((s) => [s.id, s])), [sites]);
+  const siteById = useMemo(() => new Map((sites ?? []).map((s) => [s.id, s] as const)), [sites]);
 
   // Un mismo sitio no puede aparecer dos veces en el itinerario (origen/paradas/destino) -
   // evita rutas sin sentido como "Cayambe-Cayambe". Se compara por NOMBRE (no por id): puede

@@ -64,8 +64,11 @@ driverRoutes.get("/", async (c) => {
     userIds.length > 0 ? db.select({ id: users.id, name: users.name, phone: users.phone }).from(users).where(inArray(users.id, userIds)) : [],
     vehicleIds.length > 0 ? db.select({ id: vehicles.id, plate: vehicles.plate }).from(vehicles).where(inArray(vehicles.id, vehicleIds)) : [],
   ]);
-  const userById = new Map(driverUsers.map((u) => [u.id, u]));
-  const vehicleById = new Map(driverVehicles.map((v) => [v.id, v]));
+  // "as const" en la tupla a propósito: sin él, en el entorno de build de Vercel
+  // TypeScript no infiere [id, fila] como tupla sino como array genérico, y new Map()
+  // termina en Map<unknown, unknown> en vez de Map<string, fila> (no reproducible en local).
+  const userById = new Map(driverUsers.map((u) => [u.id, u] as const));
+  const vehicleById = new Map(driverVehicles.map((v) => [v.id, v] as const));
 
   const result = rows.map((r) => ({
     ...r,
