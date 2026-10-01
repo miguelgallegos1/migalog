@@ -53,7 +53,7 @@ vehicleRoutes.post("/", requireRole(...PROVIDER_MANAGE_ROLES, ...CLIENT_MANAGE_R
   }
   const clientId = isClientRole(role) ? (c.get("clientId") as string) : null;
   const newVehicleValues = { tenantId, clientId, ...body };
-  const [row] = await db.insert(vehicles).values(newVehicleValues).returning();
+  const [row] = await db.insert(vehicles).values(newVehicleValues as any).returning();
   return c.json(row, 201);
 });
 
@@ -65,7 +65,7 @@ vehicleRoutes.patch("/:id/status", requireRole(...PROVIDER_MANAGE_ROLES, ...CLIE
   const conditions = [eq(vehicles.id, param(c, "id")), eq(vehicles.tenantId, tenantId)];
   conditions.push(isClientRole(role) ? eq(vehicles.clientId, c.get("clientId") as string) : isNull(vehicles.clientId));
   const statusValues = { status };
-  const [row] = await db.update(vehicles).set(statusValues).where(and(...conditions)).returning();
+  const [row] = await db.update(vehicles).set(statusValues as any).where(and(...conditions)).returning();
   if (!row) return c.json({ error: "No encontrado" }, 404);
   return c.json(row);
 });

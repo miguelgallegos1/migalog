@@ -58,7 +58,7 @@ clientRoutes.post("/", requireRole("admin_empresa", "super_admin"), async (c) =>
   // Variable, no literal directo en .values() (ver seed.ts para el detalle de por qué no se anota con typeof users.$inferInsert).
   const adminValues = { tenantId, clientId: client.id, role: "cliente_admin" as const, name: body.adminName, phone: body.adminPhone };
   const admin = firstOrThrow(
-    await db.insert(users).values(adminValues).returning()
+    await db.insert(users).values(adminValues as any).returning()
   );
 
   const setupToken = await signSetupToken(admin.id);
@@ -83,7 +83,7 @@ clientRoutes.patch("/:id", requireRole("admin_empresa", "super_admin"), async (c
   const updateValues = { ruc: body.ruc, name: body.name };
   const [row] = await db
     .update(clients)
-    .set(updateValues)
+    .set(updateValues as any)
     .where(and(eq(clients.id, param(c, "id")), eq(clients.tenantId, tenantId)))
     .returning();
   if (!row) return c.json({ error: "No encontrada" }, 404);
@@ -96,7 +96,7 @@ clientRoutes.patch("/:id/active", requireRole("admin_empresa", "super_admin"), a
   const activeValues = { active };
   const [row] = await db
     .update(clients)
-    .set(activeValues)
+    .set(activeValues as any)
     .where(and(eq(clients.id, param(c, "id")), eq(clients.tenantId, tenantId)))
     .returning();
   if (!row) return c.json({ error: "No encontrada" }, 404);

@@ -44,7 +44,7 @@ async function transition(
   // chequea por asignabilidad normal.
   const transitionValues = { status: to, updatedAt: new Date(), ...extra };
   const updated = firstOrThrow(
-    await db.update(routes).set(transitionValues).where(eq(routes.id, routeId)).returning()
+    await db.update(routes).set(transitionValues as any).where(eq(routes.id, routeId)).returning()
   );
 
   const historyValues = {
@@ -55,7 +55,7 @@ async function transition(
     actorUserId: actor.userId,
     note,
   };
-  await db.insert(routeStatusHistory).values(historyValues);
+  await db.insert(routeStatusHistory).values(historyValues as any);
 
   await publishTenantEvent(tenantId, "route.status_changed", {
     routeId,
@@ -91,42 +91,31 @@ export async function createRouteRequest(
     status: "CREADO" as const,
     scheduledAt: input.scheduledAt ? new Date(input.scheduledAt) : undefined,
   };
-  const route = firstOrThrow(await db.insert(routes).values(newRouteValues).returning());
+  const route = firstOrThrow(await db.insert(routes).values(newRouteValues as any).returning());
 
-  const stopRows = await db
-    .insert(routeStops)
-    .values(
-      input.stops.map((s, i) => ({
-        routeId: route.id,
-        sequenceOrder: i,
-        type: s.type,
-        label: s.label,
-        address: s.address,
-        lat: s.lat,
-        lng: s.lng,
-        plannedAt: s.plannedAt ? new Date(s.plannedAt) : undefined,
-        serviceMinutes: s.serviceMinutes ?? 0,
-      }))
-    )
-    .returning();
+  const newStopValues = input.stops.map((s, i) => ({
+    routeId: route.id,
+    sequenceOrder: i,
+    type: s.type,
+    label: s.label,
+    address: s.address,
+    lat: s.lat,
+    lng: s.lng,
+    plannedAt: s.plannedAt ? new Date(s.plannedAt) : undefined,
+    serviceMinutes: s.serviceMinutes ?? 0,
+  }));
+  const stopRows = await db.insert(routeStops).values(newStopValues as any).returning();
 
-  const cargoRows =
-    input.cargoItems.length > 0
-      ? await db
-          .insert(routeCargoItems)
-          .values(
-            input.cargoItems.map((item) => ({
-              routeId: route.id,
-              quantity: item.quantity,
-              unit: item.unit.toUpperCase(),
-              description: item.description.toUpperCase(),
-              pickupStopId: stopRows[item.pickupStopIndex]!.id,
-              dropoffStopId: stopRows[item.dropoffStopIndex]!.id,
-              notes: item.notes,
-            }))
-          )
-          .returning()
-      : [];
+  const newCargoValues = input.cargoItems.map((item) => ({
+    routeId: route.id,
+    quantity: item.quantity,
+    unit: item.unit.toUpperCase(),
+    description: item.description.toUpperCase(),
+    pickupStopId: stopRows[item.pickupStopIndex]!.id,
+    dropoffStopId: stopRows[item.dropoffStopIndex]!.id,
+    notes: item.notes,
+  }));
+  const cargoRows = input.cargoItems.length > 0 ? await db.insert(routeCargoItems).values(newCargoValues as any).returning() : [];
 
   const creationHistoryValues = {
     routeId: route.id,
@@ -134,7 +123,7 @@ export async function createRouteRequest(
     toStatus: "CREADO" as const,
     actorType: "human" as const,
   };
-  await db.insert(routeStatusHistory).values(creationHistoryValues);
+  await db.insert(routeStatusHistory).values(creationHistoryValues as any);
 
   await publishTenantEvent(tenantId, "route.created", { routeId: route.id, code: route.code });
   return { route, stops: stopRows, cargoItems: cargoRows };
@@ -234,7 +223,7 @@ export async function parkRoute(tenantId: string, routeId: string, actor: Actor)
   const origin = stops.find((s) => s.type === "origen");
   if (origin && origin.status !== "completada") {
     const arrivalValues = { status: "completada" as const, arrivedAt: new Date() };
-    await db.update(routeStops).set(arrivalValues).where(eq(routeStops.id, origin.id));
+    await db.update(routeStops).set(arrivalValues as any).where(eq(routeStops.id, origin.id));
   }
   return updated;
 }
@@ -258,7 +247,7 @@ export async function arriveAtStop(tenantId: string, routeId: string, stopId: st
   }
 
   const stopArrivalValues = { status: "completada" as const, arrivedAt: new Date() };
-  await db.update(routeStops).set(stopArrivalValues).where(eq(routeStops.id, stopId));
+  await db.update(routeStops).set(stopArrivalValues as any).where(eq(routeStops.id, stopId));
 
   const isLast = stop.sequenceOrder === Math.max(...stops.map((s) => s.sequenceOrder));
   const updated = isLast
@@ -279,7 +268,7 @@ export async function arriveAtStop(tenantId: string, routeId: string, stopId: st
 export async function recordLocationPing(tenantId: string, routeId: string, lat: number, lng: number) {
   await requireRoute(tenantId, routeId);
   const pingValues = { routeId, lat, lng };
-  const ping = firstOrThrow(await db.insert(locationPings).values(pingValues).returning());
+  const ping = firstOrThrow(await db.insert(locationPings).values(pingValues as any).returning());
   await publishTenantEvent(tenantId, "route.location", { routeId, lat, lng, recordedAt: ping.recordedAt });
   return ping;
 }
@@ -293,9 +282,9 @@ export async function reportIncident(
 ) {
   await requireRoute(tenantId, routeId);
   const incidentValues = { routeId, severity, description, photo };
-  const incident = firstOrThrow(await db.insert(routeIncidents).values(incidentValues).returning());
+  const incident = firstOrThrow(await db.insert(routeIncidents).values(incidentValues as any).returning());
   const hasIncidentValues = { hasIncident: true };
-  await db.update(routes).set(hasIncidentValues).where(eq(routes.id, routeId));
+  await db.update(routes).set(hasIncidentValues as any).where(eq(routes.id, routeId));
   await publishTenantEvent(tenantId, "route.incident", { routeId, severity, description });
   return incident;
 }
@@ -340,7 +329,7 @@ export async function checkAvailability(
 export async function rescheduleStop(tenantId: string, routeId: string, stopId: string, newPlannedAt: Date, actor: Actor) {
   const route = await requireRoute(tenantId, routeId);
   const plannedAtValues = { plannedAt: newPlannedAt };
-  const [stop] = await db.update(routeStops).set(plannedAtValues).where(eq(routeStops.id, stopId)).returning();
+  const [stop] = await db.update(routeStops).set(plannedAtValues as any).where(eq(routeStops.id, stopId)).returning();
   if (!stop) throw new RouteServiceError("Parada no encontrada", 404);
 
   const rescheduleHistoryValues = {
@@ -350,7 +339,7 @@ export async function rescheduleStop(tenantId: string, routeId: string, stopId: 
     actorUserId: actor.userId,
     note: `Cambio de horario en parada "${stop.label}" a ${newPlannedAt.toISOString()}`,
   };
-  await db.insert(routeStatusHistory).values(rescheduleHistoryValues);
+  await db.insert(routeStatusHistory).values(rescheduleHistoryValues as any);
 
   await publishTenantEvent(tenantId, "route.schedule_changed", { routeId, stopId, newPlannedAt });
   return stop;

@@ -31,17 +31,17 @@ async function main() {
     phone: "+50588880099",
     passwordHash: await hashSecret("Demo1234!"),
   };
-  const superAdmin = firstOrThrow(await db.insert(users).values(superAdminValues).returning());
+  const superAdmin = firstOrThrow(await db.insert(users).values(superAdminValues as any).returning());
 
   // --- Nivel 1: empresa proveedora (el tenant) ---
   const adminEmpresaValues = { tenantId: tenant.id, role: "admin_empresa" as const, name: "Admin Demo", phone: "+50588880000", passwordHash: await hashSecret("Demo1234!") };
-  const adminEmpresa = firstOrThrow(await db.insert(users).values(adminEmpresaValues).returning());
+  const adminEmpresa = firstOrThrow(await db.insert(users).values(adminEmpresaValues as any).returning());
 
   const coordinadorValues = { tenantId: tenant.id, role: "coordinador" as const, name: "Coordinador Demo", phone: "+50588880004", passwordHash: await hashSecret("Demo1234!") };
-  const coordinador = firstOrThrow(await db.insert(users).values(coordinadorValues).returning());
+  const coordinador = firstOrThrow(await db.insert(users).values(coordinadorValues as any).returning());
 
   const conductorUserValues = { tenantId: tenant.id, role: "conductor" as const, name: "Conductor Demo", phone: "+50588880001", pinHash: await hashSecret("123456") };
-  const conductorUser = firstOrThrow(await db.insert(users).values(conductorUserValues).returning());
+  const conductorUser = firstOrThrow(await db.insert(users).values(conductorUserValues as any).returning());
 
   // --- Nivel 2: empresa cliente (varios usuarios, cada uno con su propio rol) ---
   const client = firstOrThrow(
@@ -49,28 +49,28 @@ async function main() {
   );
 
   const clienteAdminValues = { tenantId: tenant.id, clientId: client.id, role: "cliente_admin" as const, name: "Admin Cliente Demo", phone: "+50588880010", passwordHash: await hashSecret("Demo1234!") };
-  const clienteAdmin = firstOrThrow(await db.insert(users).values(clienteAdminValues).returning());
+  const clienteAdmin = firstOrThrow(await db.insert(users).values(clienteAdminValues as any).returning());
 
   const clienteCoordinadorValues = { tenantId: tenant.id, clientId: client.id, role: "cliente_coordinador" as const, name: "Coordinador Cliente Demo", phone: "+50588880011", passwordHash: await hashSecret("Demo1234!") };
-  const clienteCoordinador = firstOrThrow(await db.insert(users).values(clienteCoordinadorValues).returning());
+  const clienteCoordinador = firstOrThrow(await db.insert(users).values(clienteCoordinadorValues as any).returning());
 
   const clienteJefeValues = { tenantId: tenant.id, clientId: client.id, role: "cliente_jefe" as const, name: "Jefe Cliente Demo", phone: "+50588880012", passwordHash: await hashSecret("Demo1234!") };
-  const clienteJefe = firstOrThrow(await db.insert(users).values(clienteJefeValues).returning());
+  const clienteJefe = firstOrThrow(await db.insert(users).values(clienteJefeValues as any).returning());
 
   const clienteVisualizadorValues = { tenantId: tenant.id, clientId: client.id, role: "cliente_visualizador" as const, name: "Visualizador Cliente Demo", phone: "+50588880013", passwordHash: await hashSecret("Demo1234!") };
-  const clienteVisualizador = firstOrThrow(await db.insert(users).values(clienteVisualizadorValues).returning());
+  const clienteVisualizador = firstOrThrow(await db.insert(users).values(clienteVisualizadorValues as any).returning());
 
   const solicitanteUserValues = { tenantId: tenant.id, clientId: client.id, role: "cliente_solicitante" as const, name: "Solicitante Demo", phone: "+50588880002", pinHash: await hashSecret("654321") };
-  const solicitanteUser = firstOrThrow(await db.insert(users).values(solicitanteUserValues).returning());
+  const solicitanteUser = firstOrThrow(await db.insert(users).values(solicitanteUserValues as any).returning());
 
   const vehicleValues = { tenantId: tenant.id, plate: "M-123456", brandModel: "Hino 300", capacityM3: 25 };
-  const vehicle = firstOrThrow(await db.insert(vehicles).values(vehicleValues).returning());
+  const vehicle = firstOrThrow(await db.insert(vehicles).values(vehicleValues as any).returning());
 
   const driverValues = { tenantId: tenant.id, userId: conductorUser.id, vehicleId: vehicle.id, licenseExpiresAt: "2027-12-31" };
-  await db.insert(drivers).values(driverValues).returning();
+  await db.insert(drivers).values(driverValues as any).returning();
 
   const routeValues = { tenantId: tenant.id, code: generateRouteCode(), clientId: client.id, status: "CREADO" as const, notes: "Ruta de ejemplo generada por el seed" };
-  const route = firstOrThrow(await db.insert(routes).values(routeValues).returning());
+  const route = firstOrThrow(await db.insert(routes).values(routeValues as any).returning());
 
   const stopValues = [
     { routeId: route.id, sequenceOrder: 0, type: "origen" as const, label: "Bodega Central", address: "Managua, km 5", lat: 12.1364, lng: -86.2514 },
@@ -78,7 +78,7 @@ async function main() {
     { routeId: route.id, sequenceOrder: 2, type: "parada" as const, label: "Parada 2 - Cliente Sur", address: "Managua, Bello Horizonte", lat: 12.1201, lng: -86.2478 },
     { routeId: route.id, sequenceOrder: 3, type: "destino" as const, label: "Destino", address: "Masaya, centro", lat: 11.9744, lng: -86.094 },
   ];
-  await db.insert(routeStops).values(stopValues);
+  await db.insert(routeStops).values(stopValues as any);
 
   const routeHistoryValues = {
     routeId: route.id,
@@ -87,15 +87,15 @@ async function main() {
     actorType: "human" as const,
     actorUserId: solicitanteUser.id,
   };
-  await db.insert(routeStatusHistory).values(routeHistoryValues);
+  await db.insert(routeStatusHistory).values(routeHistoryValues as any);
 
   const conductorDeviceToken = randomToken();
   const conductorDeviceValues = { userId: conductorUser.id, label: "Teléfono demo conductor", sessionCredentialHash: await hashSecret(conductorDeviceToken) };
-  const conductorDevice = firstOrThrow(await db.insert(devices).values(conductorDeviceValues).returning());
+  const conductorDevice = firstOrThrow(await db.insert(devices).values(conductorDeviceValues as any).returning());
 
   const solicitanteDeviceToken = randomToken();
   const solicitanteDeviceValues = { userId: solicitanteUser.id, label: "Teléfono demo solicitante", sessionCredentialHash: await hashSecret(solicitanteDeviceToken) };
-  const solicitanteDevice = firstOrThrow(await db.insert(devices).values(solicitanteDeviceValues).returning());
+  const solicitanteDevice = firstOrThrow(await db.insert(devices).values(solicitanteDeviceValues as any).returning());
 
   // Además del device+PIN ya creado (útil para probar la API directo con curl), generamos
   // un código de invitación real para cada uno: así se puede probar el flujo completo desde

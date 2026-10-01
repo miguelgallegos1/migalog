@@ -99,7 +99,7 @@ userRoutes.patch("/:id", requireRole("admin_empresa", "cliente_admin"), async (c
 
   const [row] = await db
     .update(users)
-    .set(body)
+    .set(body as any)
     .where(eq(users.id, id))
     .returning({ id: users.id, name: users.name, role: users.role, phone: users.phone, active: users.active });
   return c.json(row);
@@ -117,7 +117,7 @@ userRoutes.patch("/:id/active", requireRole("admin_empresa", "cliente_admin"), a
   const activeValues = { active };
   const [row] = await db
     .update(users)
-    .set(activeValues)
+    .set(activeValues as any)
     .where(eq(users.id, id))
     .returning({ id: users.id, name: users.name, role: users.role, phone: users.phone, active: users.active });
   return c.json(row);

@@ -73,7 +73,7 @@ tenantRoutes.post("/", async (c) => {
   // (ver seed.ts para el detalle de por qué).
   const adminValues = { tenantId: tenant.id, role: "admin_empresa" as const, name: body.adminName, phone: body.adminPhone };
   const admin = firstOrThrow(
-    await db.insert(users).values(adminValues).returning()
+    await db.insert(users).values(adminValues as any).returning()
   );
 
   const setupToken = await signSetupToken(admin.id);
@@ -84,7 +84,7 @@ tenantRoutes.patch("/:id/active", async (c) => {
   const id = c.req.param("id");
   const { active } = z.object({ active: z.boolean() }).parse(await c.req.json());
   const activeValues = { active };
-  const [tenant] = await db.update(tenants).set(activeValues).where(eq(tenants.id, id)).returning();
+  const [tenant] = await db.update(tenants).set(activeValues as any).where(eq(tenants.id, id)).returning();
   if (!tenant) return c.json({ error: "Empresa no encontrada" }, 404);
   return c.json(tenant);
 });
@@ -95,7 +95,7 @@ tenantRoutes.patch("/:id", async (c) => {
   const id = c.req.param("id");
   const body = updateTenantSchema.parse(await c.req.json());
   const updateValues = { ruc: body.ruc, name: body.name };
-  const [tenant] = await db.update(tenants).set(updateValues).where(eq(tenants.id, id)).returning();
+  const [tenant] = await db.update(tenants).set(updateValues as any).where(eq(tenants.id, id)).returning();
   if (!tenant) return c.json({ error: "Empresa no encontrada" }, 404);
   return c.json(tenant);
 });

@@ -169,10 +169,11 @@ routeTemplateRoutes.post(
       status: "pendiente" as const,
       proposedByClientId: clientId,
     };
-    const [row] = await db.insert(routeTemplates).values(newTemplateValues).returning();
+    const [row] = await db.insert(routeTemplates).values(newTemplateValues as any).returning();
 
     if (body.stops.length > 0) {
-      await db.insert(routeTemplateStops).values(body.stops.map((s, i) => ({ routeTemplateId: row!.id, siteId: s.siteId, price: s.price, sequenceOrder: i })));
+      const newStopValues = body.stops.map((s, i) => ({ routeTemplateId: row!.id, siteId: s.siteId, price: s.price, sequenceOrder: i }));
+      await db.insert(routeTemplateStops).values(newStopValues as any);
     }
 
     const [enriched] = await attachSites(tenantId, [row!]);
@@ -212,11 +213,12 @@ routeTemplateRoutes.post("/:id/resubmit", requireRole("cliente_admin", "cliente_
     distanceKm: body.distanceKm,
     status: "pendiente" as const,
   };
-  await db.update(routeTemplates).set(resubmitValues).where(eq(routeTemplates.id, id));
+  await db.update(routeTemplates).set(resubmitValues as any).where(eq(routeTemplates.id, id));
 
   await db.delete(routeTemplateStops).where(eq(routeTemplateStops.routeTemplateId, id));
   if (body.stops.length > 0) {
-    await db.insert(routeTemplateStops).values(body.stops.map((s, i) => ({ routeTemplateId: id, siteId: s.siteId, price: s.price, sequenceOrder: i })));
+    const resubmitStopValues = body.stops.map((s, i) => ({ routeTemplateId: id, siteId: s.siteId, price: s.price, sequenceOrder: i }));
+    await db.insert(routeTemplateStops).values(resubmitStopValues as any);
   }
 
   const [row] = await db.select().from(routeTemplates).where(eq(routeTemplates.id, id));
@@ -230,7 +232,7 @@ routeTemplateRoutes.post("/:id/approve", requireRole("admin_empresa", "coordinad
   const approveValues = { status: "aprobada" as const, price: body.price, estimatedMinutes: body.estimatedMinutes };
   const [row] = await db
     .update(routeTemplates)
-    .set(approveValues)
+    .set(approveValues as any)
     .where(and(eq(routeTemplates.id, param(c, "id")), eq(routeTemplates.tenantId, tenantId)))
     .returning();
   if (!row) return c.json({ error: "No encontrada" }, 404);
@@ -242,7 +244,7 @@ routeTemplateRoutes.post("/:id/reject", requireRole("admin_empresa", "coordinado
   const rejectValues = { status: "rechazada" as const };
   const [row] = await db
     .update(routeTemplates)
-    .set(rejectValues)
+    .set(rejectValues as any)
     .where(and(eq(routeTemplates.id, param(c, "id")), eq(routeTemplates.tenantId, tenantId)))
     .returning();
   if (!row) return c.json({ error: "No encontrada" }, 404);
@@ -265,7 +267,7 @@ routeTemplateRoutes.patch("/:id", requireRole(...MANAGE_ROLES), async (c) => {
   const body = updateRouteTemplateSchema.parse(await c.req.json());
   const [row] = await db
     .update(routeTemplates)
-    .set(body)
+    .set(body as any)
     .where(and(eq(routeTemplates.id, param(c, "id")), eq(routeTemplates.tenantId, tenantId)))
     .returning();
   if (!row) return c.json({ error: "No encontrada" }, 404);
@@ -278,7 +280,7 @@ routeTemplateRoutes.patch("/:id/active", requireRole(...MANAGE_ROLES), async (c)
   const activeValues = { active };
   const [row] = await db
     .update(routeTemplates)
-    .set(activeValues)
+    .set(activeValues as any)
     .where(and(eq(routeTemplates.id, param(c, "id")), eq(routeTemplates.tenantId, tenantId)))
     .returning();
   if (!row) return c.json({ error: "No encontrada" }, 404);

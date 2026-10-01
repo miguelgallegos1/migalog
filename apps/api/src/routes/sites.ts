@@ -39,7 +39,7 @@ siteRoutes.post("/", requireRole(...MANAGE_ROLES), async (c) => {
   const [dup] = await db.select({ id: sites.id }).from(sites).where(and(eq(sites.clientId, clientId), eq(sites.name, body.name)));
   if (dup) return c.json({ error: `Ya existe un sitio llamado "${body.name}"` }, 409);
   const newSiteValues = { tenantId, clientId, ...body };
-  const [row] = await db.insert(sites).values(newSiteValues).returning();
+  const [row] = await db.insert(sites).values(newSiteValues as any).returning();
   return c.json(row, 201);
 });
 
@@ -55,7 +55,7 @@ siteRoutes.patch("/:id", requireRole(...MANAGE_ROLES), async (c) => {
   }
   const [row] = await db
     .update(sites)
-    .set(body)
+    .set(body as any)
     .where(and(eq(sites.id, id), eq(sites.clientId, clientId)))
     .returning();
   if (!row) return c.json({ error: "No encontrado" }, 404);
@@ -68,7 +68,7 @@ siteRoutes.patch("/:id/active", requireRole(...MANAGE_ROLES), async (c) => {
   const activeValues = { active };
   const [row] = await db
     .update(sites)
-    .set(activeValues)
+    .set(activeValues as any)
     .where(and(eq(sites.id, param(c, "id")), eq(sites.clientId, clientId)))
     .returning();
   if (!row) return c.json({ error: "No encontrado" }, 404);

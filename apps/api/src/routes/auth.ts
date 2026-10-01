@@ -122,7 +122,7 @@ authRoutes.post(
       phone: body.phone,
     };
     const user = firstOrThrow(
-      await db.insert(users).values(newUserValues).returning()
+      await db.insert(users).values(newUserValues as any).returning()
     );
 
     const setupToken = await signSetupToken(user.id);
@@ -141,7 +141,7 @@ authRoutes.post("/setup-password", async (c) => {
   const passwordHash = await hashSecret(password);
   // Variable, no literal directo en .set() (ver seed.ts para el detalle de por qué no se anota con typeof users.$inferInsert).
   const passwordValues = { passwordHash };
-  await db.update(users).set(passwordValues).where(eq(users.id, userId));
+  await db.update(users).set(passwordValues as any).where(eq(users.id, userId));
   return c.json({ ok: true });
 });
 
@@ -158,12 +158,12 @@ authRoutes.post("/setup-pin", async (c) => {
 
   const pinHash = await hashSecret(pin);
   const pinValues = { pinHash };
-  await db.update(users).set(pinValues).where(eq(users.id, userId));
+  await db.update(users).set(pinValues as any).where(eq(users.id, userId));
 
   const deviceRefreshToken = randomToken();
   const sessionCredentialHash = await hashSecret(deviceRefreshToken);
   const deviceValues = { userId, label: deviceLabel, sessionCredentialHash };
-  const device = firstOrThrow(await db.insert(devices).values(deviceValues).returning());
+  const device = firstOrThrow(await db.insert(devices).values(deviceValues as any).returning());
 
   // deviceRefreshToken se devuelve una sola vez: el cliente lo guarda cifrado en el dispositivo
   // y lo usa junto con PIN/biometría para refrescar la sesión sin volver a escribir el PIN cada vez.
@@ -202,14 +202,14 @@ authRoutes.post("/login-pin", async (c) => {
     const lockedUntil =
       attempts >= FAILED_ATTEMPTS_LIMIT ? new Date(Date.now() + LOCK_MINUTES * 60_000) : null;
     const lockoutValues = { failedAttempts: attempts, lockedUntil };
-    await db.update(devices).set(lockoutValues).where(eq(devices.id, deviceId));
+    await db.update(devices).set(lockoutValues as any).where(eq(devices.id, deviceId));
     return c.json({ error: "PIN incorrecto" }, 401);
   }
 
   if (!(await isAccountUsable(user))) return c.json({ error: "Empresa desactivada" }, 401);
 
   const resetAttemptsValues = { failedAttempts: 0, lockedUntil: null };
-  await db.update(devices).set(resetAttemptsValues).where(eq(devices.id, deviceId));
+  await db.update(devices).set(resetAttemptsValues as any).where(eq(devices.id, deviceId));
   const accessToken = await signAccessToken({ sub: user.id, tenantId: user.tenantId, clientId: user.clientId, role: user.role });
   return c.json({ accessToken, user: await buildSessionUser(user) });
 });
@@ -254,7 +254,7 @@ authRoutes.post("/device/register", requireAuth, async (c) => {
   const deviceRefreshToken = randomToken();
   const sessionCredentialHash = await hashSecret(deviceRefreshToken);
   const registerDeviceValues = { userId, label: deviceLabel, sessionCredentialHash };
-  const device = firstOrThrow(await db.insert(devices).values(registerDeviceValues).returning());
+  const device = firstOrThrow(await db.insert(devices).values(registerDeviceValues as any).returning());
 
   return c.json({ deviceId: device.id, deviceRefreshToken });
 });
@@ -277,6 +277,6 @@ authRoutes.post("/device/enable-biometric", requireAuth, async (c) => {
   if (!device) return c.json({ error: "Dispositivo no encontrado" }, 404);
 
   const biometricValues = { webauthnCredentialId };
-  await db.update(devices).set(biometricValues).where(eq(devices.id, deviceId));
+  await db.update(devices).set(biometricValues as any).where(eq(devices.id, deviceId));
   return c.json({ ok: true });
 });
