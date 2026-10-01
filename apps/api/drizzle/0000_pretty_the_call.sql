@@ -77,6 +77,7 @@ CREATE TABLE IF NOT EXISTS "route_incidents" (
 	"route_id" uuid NOT NULL,
 	"severity" text NOT NULL,
 	"description" text NOT NULL,
+	"photo" text,
 	"active" boolean DEFAULT true NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"resolved_at" timestamp with time zone

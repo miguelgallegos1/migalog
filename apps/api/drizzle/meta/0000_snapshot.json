@@ -1,5 +1,5 @@
 {
-  "id": "ca2d42bb-61f8-4856-8be3-9e4d4f45f868",
+  "id": "c255c4e3-44ca-4463-8e49-c4647d4676b0",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -590,6 +590,12 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "photo": {
+          "name": "photo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         },
         "active": {
           "name": "active",
