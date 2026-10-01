@@ -2,6 +2,7 @@
   "name": "migalog",
   "private": true,
   "version": "0.1.0",
+  "packageManager": "pnpm@12.8.1",
   "engines": {
     "node": ">=20"
   },

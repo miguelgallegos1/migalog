@@ -75,7 +75,7 @@ authRoutes.post(
   requireRole("admin_empresa", "super_admin", "cliente_admin"),
   async (c) => {
     const body = inviteUserSchema.parse(await c.req.json());
-    const tenantId = c.get("tenantId");
+    const tenantId = c.get("tenantId") as string;
     const actorRole = c.get("role");
     const actorClientId = c.get("clientId");
 
