@@ -69,11 +69,13 @@ tenantRoutes.post("/", async (c) => {
   const slug = await uniqueSlug(body.name);
 
   const tenant = firstOrThrow(await db.insert(tenants).values({ ruc: body.ruc, name: body.name, slug }).returning());
+  // Asignado a una variable (no un objeto literal directo en .values()) a propósito: un
+  // literal "fresco" pasado directo dispara el excess-property-check de TypeScript contra el
+  // overload equivocado de Drizzle en ciertas versiones del compilador (ver NewUser en
+  // schema.ts) - vía variable, TS lo chequea por asignabilidad normal, no por ese camino.
+  const adminValues: NewUser = { tenantId: tenant.id, role: "admin_empresa", name: body.adminName, phone: body.adminPhone };
   const admin = firstOrThrow(
-    await db
-      .insert(users)
-      .values({ tenantId: tenant.id, role: "admin_empresa", name: body.adminName, phone: body.adminPhone } satisfies NewUser)
-      .returning()
+    await db.insert(users).values(adminValues).returning()
   );
 
   const setupToken = await signSetupToken(admin.id);

@@ -93,11 +93,13 @@ export const users = pgTable("users", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-// Para anotar los objetos que se pasan a insert(users).values(...) con "satisfies NewUser" -
-// evita un problema de TypeScript con sobrecargas genéricas de Drizzle donde un objeto
-// literal con columnas opcionales/nullable (tenantId, clientId, passwordHash, pinHash)
-// mezcladas con las NOT NULL (role, name, phone) puede fallar "excess property checking"
-// contra la sobrecarga equivocada según la versión exacta del compilador.
+// Para tipar la variable que se construye ANTES de pasarla a insert(users).values(...) -
+// pasar un objeto literal directo ahí dispara el excess-property-check de TypeScript contra
+// la sobrecarga equivocada de Drizzle (un objeto con columnas opcionales/nullable como
+// tenantId/clientId/passwordHash/pinHash mezcladas con las NOT NULL - role/name/phone - no
+// matchea el overload esperado en ciertas versiones del compilador). Vía variable, TS
+// chequea por asignabilidad normal en vez de por ese camino. Ver uso en auth.ts, clients.ts,
+// tenants.ts, drivers.ts y db/seed.ts.
 export type NewUser = typeof users.$inferInsert;
 
 /**

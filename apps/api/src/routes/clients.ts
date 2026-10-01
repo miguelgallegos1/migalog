@@ -55,11 +55,10 @@ clientRoutes.post("/", requireRole("admin_empresa", "super_admin"), async (c) =>
   const body = createSchema.parse(await c.req.json());
 
   const client = firstOrThrow(await db.insert(clients).values({ tenantId, ruc: body.ruc, name: body.name }).returning());
+  // Variable, no literal directo en .values() - ver comentario en NewUser (schema.ts).
+  const adminValues: NewUser = { tenantId, clientId: client.id, role: "cliente_admin", name: body.adminName, phone: body.adminPhone };
   const admin = firstOrThrow(
-    await db
-      .insert(users)
-      .values({ tenantId, clientId: client.id, role: "cliente_admin", name: body.adminName, phone: body.adminPhone } satisfies NewUser)
-      .returning()
+    await db.insert(users).values(adminValues).returning()
   );
 
   const setupToken = await signSetupToken(admin.id);

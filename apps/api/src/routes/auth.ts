@@ -113,17 +113,16 @@ authRoutes.post(
       clientId = client.id;
     }
 
+    // Variable, no literal directo en .values() - ver comentario en NewUser (schema.ts).
+    const newUserValues: NewUser = {
+      tenantId,
+      clientId,
+      role: body.role,
+      name: body.name,
+      phone: body.phone,
+    };
     const user = firstOrThrow(
-      await db
-        .insert(users)
-        .values({
-          tenantId,
-          clientId,
-          role: body.role,
-          name: body.name,
-          phone: body.phone,
-        } satisfies NewUser)
-        .returning()
+      await db.insert(users).values(newUserValues).returning()
     );
 
     const setupToken = await signSetupToken(user.id);

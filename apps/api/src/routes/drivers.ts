@@ -98,11 +98,10 @@ driverRoutes.post("/", requireRole(...PROVIDER_MANAGE_ROLES, ...CLIENT_MANAGE_RO
     return c.json({ error: "Ese camión no existe o no pertenece a tu flota" }, 400);
   }
 
+  // Variable, no literal directo en .values() - ver comentario en NewUser (schema.ts).
+  const newUserValues: NewUser = { tenantId, clientId, role: clientId ? "cliente_conductor" : "conductor", name: body.name, phone: body.phone };
   const user = firstOrThrow(
-    await db
-      .insert(users)
-      .values({ tenantId, clientId, role: clientId ? "cliente_conductor" : "conductor", name: body.name, phone: body.phone } satisfies NewUser)
-      .returning()
+    await db.insert(users).values(newUserValues).returning()
   );
   const driver = firstOrThrow(
     await db

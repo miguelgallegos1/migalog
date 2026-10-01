@@ -13,80 +13,48 @@ async function main() {
     await db.insert(tenants).values({ ruc: "0801199901234", name: "Transportes Demo S.A.", slug: "demo" }).returning()
   );
 
-  const superAdmin = firstOrThrow(
-    await db
-      .insert(users)
-      .values({
-        tenantId: null,
-        role: "super_admin",
-        name: "Dueño MigaLog",
-        phone: "+50588880099",
-        passwordHash: await hashSecret("Demo1234!"),
-      } satisfies NewUser)
-      .returning()
-  );
+  // Cada insert de usuario se pasa como variable, no como objeto literal directo en
+  // .values() - un literal "fresco" ahí dispara el excess-property-check de TypeScript
+  // contra el overload equivocado de Drizzle en ciertas versiones del compilador (ver
+  // NewUser en schema.ts); vía variable, TS lo chequea por asignabilidad normal.
+  const superAdminValues: NewUser = {
+    tenantId: null,
+    role: "super_admin",
+    name: "Dueño MigaLog",
+    phone: "+50588880099",
+    passwordHash: await hashSecret("Demo1234!"),
+  };
+  const superAdmin = firstOrThrow(await db.insert(users).values(superAdminValues).returning());
 
   // --- Nivel 1: empresa proveedora (el tenant) ---
-  const adminEmpresa = firstOrThrow(
-    await db
-      .insert(users)
-      .values({ tenantId: tenant.id, role: "admin_empresa", name: "Admin Demo", phone: "+50588880000", passwordHash: await hashSecret("Demo1234!") } satisfies NewUser)
-      .returning()
-  );
+  const adminEmpresaValues: NewUser = { tenantId: tenant.id, role: "admin_empresa", name: "Admin Demo", phone: "+50588880000", passwordHash: await hashSecret("Demo1234!") };
+  const adminEmpresa = firstOrThrow(await db.insert(users).values(adminEmpresaValues).returning());
 
-  const coordinador = firstOrThrow(
-    await db
-      .insert(users)
-      .values({ tenantId: tenant.id, role: "coordinador", name: "Coordinador Demo", phone: "+50588880004", passwordHash: await hashSecret("Demo1234!") } satisfies NewUser)
-      .returning()
-  );
+  const coordinadorValues: NewUser = { tenantId: tenant.id, role: "coordinador", name: "Coordinador Demo", phone: "+50588880004", passwordHash: await hashSecret("Demo1234!") };
+  const coordinador = firstOrThrow(await db.insert(users).values(coordinadorValues).returning());
 
-  const conductorUser = firstOrThrow(
-    await db
-      .insert(users)
-      .values({ tenantId: tenant.id, role: "conductor", name: "Conductor Demo", phone: "+50588880001", pinHash: await hashSecret("123456") } satisfies NewUser)
-      .returning()
-  );
+  const conductorUserValues: NewUser = { tenantId: tenant.id, role: "conductor", name: "Conductor Demo", phone: "+50588880001", pinHash: await hashSecret("123456") };
+  const conductorUser = firstOrThrow(await db.insert(users).values(conductorUserValues).returning());
 
   // --- Nivel 2: empresa cliente (varios usuarios, cada uno con su propio rol) ---
   const client = firstOrThrow(
     await db.insert(clients).values({ tenantId: tenant.id, ruc: "0801199905678", name: "Comercial El Sol" }).returning()
   );
 
-  const clienteAdmin = firstOrThrow(
-    await db
-      .insert(users)
-      .values({ tenantId: tenant.id, clientId: client.id, role: "cliente_admin", name: "Admin Cliente Demo", phone: "+50588880010", passwordHash: await hashSecret("Demo1234!") } satisfies NewUser)
-      .returning()
-  );
+  const clienteAdminValues: NewUser = { tenantId: tenant.id, clientId: client.id, role: "cliente_admin", name: "Admin Cliente Demo", phone: "+50588880010", passwordHash: await hashSecret("Demo1234!") };
+  const clienteAdmin = firstOrThrow(await db.insert(users).values(clienteAdminValues).returning());
 
-  const clienteCoordinador = firstOrThrow(
-    await db
-      .insert(users)
-      .values({ tenantId: tenant.id, clientId: client.id, role: "cliente_coordinador", name: "Coordinador Cliente Demo", phone: "+50588880011", passwordHash: await hashSecret("Demo1234!") } satisfies NewUser)
-      .returning()
-  );
+  const clienteCoordinadorValues: NewUser = { tenantId: tenant.id, clientId: client.id, role: "cliente_coordinador", name: "Coordinador Cliente Demo", phone: "+50588880011", passwordHash: await hashSecret("Demo1234!") };
+  const clienteCoordinador = firstOrThrow(await db.insert(users).values(clienteCoordinadorValues).returning());
 
-  const clienteJefe = firstOrThrow(
-    await db
-      .insert(users)
-      .values({ tenantId: tenant.id, clientId: client.id, role: "cliente_jefe", name: "Jefe Cliente Demo", phone: "+50588880012", passwordHash: await hashSecret("Demo1234!") } satisfies NewUser)
-      .returning()
-  );
+  const clienteJefeValues: NewUser = { tenantId: tenant.id, clientId: client.id, role: "cliente_jefe", name: "Jefe Cliente Demo", phone: "+50588880012", passwordHash: await hashSecret("Demo1234!") };
+  const clienteJefe = firstOrThrow(await db.insert(users).values(clienteJefeValues).returning());
 
-  const clienteVisualizador = firstOrThrow(
-    await db
-      .insert(users)
-      .values({ tenantId: tenant.id, clientId: client.id, role: "cliente_visualizador", name: "Visualizador Cliente Demo", phone: "+50588880013", passwordHash: await hashSecret("Demo1234!") } satisfies NewUser)
-      .returning()
-  );
+  const clienteVisualizadorValues: NewUser = { tenantId: tenant.id, clientId: client.id, role: "cliente_visualizador", name: "Visualizador Cliente Demo", phone: "+50588880013", passwordHash: await hashSecret("Demo1234!") };
+  const clienteVisualizador = firstOrThrow(await db.insert(users).values(clienteVisualizadorValues).returning());
 
-  const solicitanteUser = firstOrThrow(
-    await db
-      .insert(users)
-      .values({ tenantId: tenant.id, clientId: client.id, role: "cliente_solicitante", name: "Solicitante Demo", phone: "+50588880002", pinHash: await hashSecret("654321") } satisfies NewUser)
-      .returning()
-  );
+  const solicitanteUserValues: NewUser = { tenantId: tenant.id, clientId: client.id, role: "cliente_solicitante", name: "Solicitante Demo", phone: "+50588880002", pinHash: await hashSecret("654321") };
+  const solicitanteUser = firstOrThrow(await db.insert(users).values(solicitanteUserValues).returning());
 
   const vehicle = firstOrThrow(
     await db.insert(vehicles).values({ tenantId: tenant.id, plate: "M-123456", brandModel: "Hino 300", capacityM3: 25 }).returning()
