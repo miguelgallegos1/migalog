@@ -156,22 +156,20 @@ routeTemplateRoutes.post(
     if (!validation.ok) return c.json({ error: validation.error }, validation.status);
     const { name } = validation;
 
-    const [row] = await db
-      .insert(routeTemplates)
-      .values({
-        tenantId,
-        name,
-        effectiveDate: body.effectiveDate,
-        billingSiteId: body.billingSiteId,
-        originSiteId: body.originSiteId,
-        destinationSiteId: body.destinationSiteId,
-        price: body.price,
-        estimatedMinutes: body.estimatedMinutes,
-        distanceKm: body.distanceKm,
-        status: "pendiente",
-        proposedByClientId: clientId,
-      })
-      .returning();
+    const newTemplateValues: typeof routeTemplates.$inferInsert = {
+      tenantId,
+      name,
+      effectiveDate: body.effectiveDate,
+      billingSiteId: body.billingSiteId,
+      originSiteId: body.originSiteId,
+      destinationSiteId: body.destinationSiteId,
+      price: body.price,
+      estimatedMinutes: body.estimatedMinutes,
+      distanceKm: body.distanceKm,
+      status: "pendiente",
+      proposedByClientId: clientId,
+    };
+    const [row] = await db.insert(routeTemplates).values(newTemplateValues).returning();
 
     if (body.stops.length > 0) {
       await db.insert(routeTemplateStops).values(body.stops.map((s, i) => ({ routeTemplateId: row!.id, siteId: s.siteId, price: s.price, sequenceOrder: i })));
@@ -203,20 +201,18 @@ routeTemplateRoutes.post("/:id/resubmit", requireRole("cliente_admin", "cliente_
   if (!validation.ok) return c.json({ error: validation.error }, validation.status);
   const { name } = validation;
 
-  await db
-    .update(routeTemplates)
-    .set({
-      name,
-      effectiveDate: body.effectiveDate,
-      billingSiteId: body.billingSiteId,
-      originSiteId: body.originSiteId,
-      destinationSiteId: body.destinationSiteId,
-      price: body.price,
-      estimatedMinutes: body.estimatedMinutes,
-      distanceKm: body.distanceKm,
-      status: "pendiente",
-    })
-    .where(eq(routeTemplates.id, id));
+  const resubmitValues: Partial<typeof routeTemplates.$inferInsert> = {
+    name,
+    effectiveDate: body.effectiveDate,
+    billingSiteId: body.billingSiteId,
+    originSiteId: body.originSiteId,
+    destinationSiteId: body.destinationSiteId,
+    price: body.price,
+    estimatedMinutes: body.estimatedMinutes,
+    distanceKm: body.distanceKm,
+    status: "pendiente",
+  };
+  await db.update(routeTemplates).set(resubmitValues).where(eq(routeTemplates.id, id));
 
   await db.delete(routeTemplateStops).where(eq(routeTemplateStops.routeTemplateId, id));
   if (body.stops.length > 0) {
@@ -231,9 +227,10 @@ routeTemplateRoutes.post("/:id/resubmit", requireRole("cliente_admin", "cliente_
 routeTemplateRoutes.post("/:id/approve", requireRole("admin_empresa", "coordinador", "super_admin"), async (c) => {
   const tenantId = c.get("tenantId") as string;
   const body = approveRouteTemplateSchema.parse(await c.req.json());
+  const approveValues: Partial<typeof routeTemplates.$inferInsert> = { status: "aprobada", price: body.price, estimatedMinutes: body.estimatedMinutes };
   const [row] = await db
     .update(routeTemplates)
-    .set({ status: "aprobada", price: body.price, estimatedMinutes: body.estimatedMinutes })
+    .set(approveValues)
     .where(and(eq(routeTemplates.id, param(c, "id")), eq(routeTemplates.tenantId, tenantId)))
     .returning();
   if (!row) return c.json({ error: "No encontrada" }, 404);
@@ -242,9 +239,10 @@ routeTemplateRoutes.post("/:id/approve", requireRole("admin_empresa", "coordinad
 
 routeTemplateRoutes.post("/:id/reject", requireRole("admin_empresa", "coordinador", "super_admin"), async (c) => {
   const tenantId = c.get("tenantId") as string;
+  const rejectValues: Partial<typeof routeTemplates.$inferInsert> = { status: "rechazada" };
   const [row] = await db
     .update(routeTemplates)
-    .set({ status: "rechazada" })
+    .set(rejectValues)
     .where(and(eq(routeTemplates.id, param(c, "id")), eq(routeTemplates.tenantId, tenantId)))
     .returning();
   if (!row) return c.json({ error: "No encontrada" }, 404);
@@ -277,9 +275,10 @@ routeTemplateRoutes.patch("/:id", requireRole(...MANAGE_ROLES), async (c) => {
 routeTemplateRoutes.patch("/:id/active", requireRole(...MANAGE_ROLES), async (c) => {
   const tenantId = c.get("tenantId") as string;
   const { active } = z.object({ active: z.boolean() }).parse(await c.req.json());
+  const activeValues: Partial<typeof routeTemplates.$inferInsert> = { active };
   const [row] = await db
     .update(routeTemplates)
-    .set({ active })
+    .set(activeValues)
     .where(and(eq(routeTemplates.id, param(c, "id")), eq(routeTemplates.tenantId, tenantId)))
     .returning();
   if (!row) return c.json({ error: "No encontrada" }, 404);

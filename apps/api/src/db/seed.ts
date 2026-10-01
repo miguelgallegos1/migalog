@@ -56,52 +56,39 @@ async function main() {
   const solicitanteUserValues: NewUser = { tenantId: tenant.id, clientId: client.id, role: "cliente_solicitante", name: "Solicitante Demo", phone: "+50588880002", pinHash: await hashSecret("654321") };
   const solicitanteUser = firstOrThrow(await db.insert(users).values(solicitanteUserValues).returning());
 
-  const vehicle = firstOrThrow(
-    await db.insert(vehicles).values({ tenantId: tenant.id, plate: "M-123456", brandModel: "Hino 300", capacityM3: 25 }).returning()
-  );
+  const vehicleValues: typeof vehicles.$inferInsert = { tenantId: tenant.id, plate: "M-123456", brandModel: "Hino 300", capacityM3: 25 };
+  const vehicle = firstOrThrow(await db.insert(vehicles).values(vehicleValues).returning());
 
-  await db
-    .insert(drivers)
-    .values({ tenantId: tenant.id, userId: conductorUser.id, vehicleId: vehicle.id, licenseExpiresAt: "2027-12-31" })
-    .returning();
+  const driverValues: typeof drivers.$inferInsert = { tenantId: tenant.id, userId: conductorUser.id, vehicleId: vehicle.id, licenseExpiresAt: "2027-12-31" };
+  await db.insert(drivers).values(driverValues).returning();
 
-  const route = firstOrThrow(
-    await db
-      .insert(routes)
-      .values({ tenantId: tenant.id, code: generateRouteCode(), clientId: client.id, status: "CREADO", notes: "Ruta de ejemplo generada por el seed" })
-      .returning()
-  );
+  const routeValues: typeof routes.$inferInsert = { tenantId: tenant.id, code: generateRouteCode(), clientId: client.id, status: "CREADO", notes: "Ruta de ejemplo generada por el seed" };
+  const route = firstOrThrow(await db.insert(routes).values(routeValues).returning());
 
-  await db.insert(routeStops).values([
+  const stopValues: (typeof routeStops.$inferInsert)[] = [
     { routeId: route.id, sequenceOrder: 0, type: "origen", label: "Bodega Central", address: "Managua, km 5", lat: 12.1364, lng: -86.2514 },
     { routeId: route.id, sequenceOrder: 1, type: "parada", label: "Parada 1 - Cliente Norte", address: "Managua, Linda Vista", lat: 12.1489, lng: -86.2362 },
     { routeId: route.id, sequenceOrder: 2, type: "parada", label: "Parada 2 - Cliente Sur", address: "Managua, Bello Horizonte", lat: 12.1201, lng: -86.2478 },
     { routeId: route.id, sequenceOrder: 3, type: "destino", label: "Destino", address: "Masaya, centro", lat: 11.9744, lng: -86.094 },
-  ]);
+  ];
+  await db.insert(routeStops).values(stopValues);
 
-  await db.insert(routeStatusHistory).values({
+  const routeHistoryValues: typeof routeStatusHistory.$inferInsert = {
     routeId: route.id,
     fromStatus: null,
     toStatus: "CREADO",
     actorType: "human",
     actorUserId: solicitanteUser.id,
-  });
+  };
+  await db.insert(routeStatusHistory).values(routeHistoryValues);
 
   const conductorDeviceToken = randomToken();
-  const conductorDevice = firstOrThrow(
-    await db
-      .insert(devices)
-      .values({ userId: conductorUser.id, label: "Teléfono demo conductor", sessionCredentialHash: await hashSecret(conductorDeviceToken) })
-      .returning()
-  );
+  const conductorDeviceValues: typeof devices.$inferInsert = { userId: conductorUser.id, label: "Teléfono demo conductor", sessionCredentialHash: await hashSecret(conductorDeviceToken) };
+  const conductorDevice = firstOrThrow(await db.insert(devices).values(conductorDeviceValues).returning());
 
   const solicitanteDeviceToken = randomToken();
-  const solicitanteDevice = firstOrThrow(
-    await db
-      .insert(devices)
-      .values({ userId: solicitanteUser.id, label: "Teléfono demo solicitante", sessionCredentialHash: await hashSecret(solicitanteDeviceToken) })
-      .returning()
-  );
+  const solicitanteDeviceValues: typeof devices.$inferInsert = { userId: solicitanteUser.id, label: "Teléfono demo solicitante", sessionCredentialHash: await hashSecret(solicitanteDeviceToken) };
+  const solicitanteDevice = firstOrThrow(await db.insert(devices).values(solicitanteDeviceValues).returning());
 
   // Además del device+PIN ya creado (útil para probar la API directo con curl), generamos
   // un código de invitación real para cada uno: así se puede probar el flujo completo desde

@@ -85,7 +85,8 @@ tenantRoutes.post("/", async (c) => {
 tenantRoutes.patch("/:id/active", async (c) => {
   const id = c.req.param("id");
   const { active } = z.object({ active: z.boolean() }).parse(await c.req.json());
-  const [tenant] = await db.update(tenants).set({ active }).where(eq(tenants.id, id)).returning();
+  const activeValues: Partial<typeof tenants.$inferInsert> = { active };
+  const [tenant] = await db.update(tenants).set(activeValues).where(eq(tenants.id, id)).returning();
   if (!tenant) return c.json({ error: "Empresa no encontrada" }, 404);
   return c.json(tenant);
 });
@@ -95,7 +96,8 @@ const updateTenantSchema = z.object({ ruc: z.string().min(1), name: z.string().m
 tenantRoutes.patch("/:id", async (c) => {
   const id = c.req.param("id");
   const body = updateTenantSchema.parse(await c.req.json());
-  const [tenant] = await db.update(tenants).set({ ruc: body.ruc, name: body.name }).where(eq(tenants.id, id)).returning();
+  const updateValues: Partial<typeof tenants.$inferInsert> = { ruc: body.ruc, name: body.name };
+  const [tenant] = await db.update(tenants).set(updateValues).where(eq(tenants.id, id)).returning();
   if (!tenant) return c.json({ error: "Empresa no encontrada" }, 404);
   return c.json(tenant);
 });

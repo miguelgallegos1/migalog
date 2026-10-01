@@ -34,22 +34,24 @@ async function transition(
     throw new RouteServiceError(`No se puede pasar de ${route.status} a ${to}`);
   }
 
+  // Variables, no objetos literales directos en .set()/.values() - un literal "fresco" ahí
+  // puede disparar el excess-property-check de TypeScript contra el overload equivocado de
+  // Drizzle (pasó en build, no en local - ver historial de commits). Vía variable, TS
+  // chequea por asignabilidad normal.
+  const transitionValues: Partial<typeof routes.$inferInsert> = { status: to, updatedAt: new Date(), ...extra };
   const updated = firstOrThrow(
-    await db
-      .update(routes)
-      .set({ status: to, updatedAt: new Date(), ...extra })
-      .where(eq(routes.id, routeId))
-      .returning()
+    await db.update(routes).set(transitionValues).where(eq(routes.id, routeId)).returning()
   );
 
-  await db.insert(routeStatusHistory).values({
+  const historyValues: typeof routeStatusHistory.$inferInsert = {
     routeId,
     fromStatus: route.status,
     toStatus: to,
     actorType: actor.type,
     actorUserId: actor.userId,
     note,
-  });
+  };
+  await db.insert(routeStatusHistory).values(historyValues);
 
   await publishTenantEvent(tenantId, "route.status_changed", {
     routeId,
@@ -77,19 +79,15 @@ export async function createRouteRequest(
     }
   }
 
-  const route = firstOrThrow(
-    await db
-      .insert(routes)
-      .values({
-        tenantId,
-        clientId: input.clientId,
-        code: generateRouteCode(),
-        notes: input.notes,
-        status: "CREADO",
-        scheduledAt: input.scheduledAt ? new Date(input.scheduledAt) : undefined,
-      })
-      .returning()
-  );
+  const newRouteValues: typeof routes.$inferInsert = {
+    tenantId,
+    clientId: input.clientId,
+    code: generateRouteCode(),
+    notes: input.notes,
+    status: "CREADO",
+    scheduledAt: input.scheduledAt ? new Date(input.scheduledAt) : undefined,
+  };
+  const route = firstOrThrow(await db.insert(routes).values(newRouteValues).returning());
 
   const stopRows = await db
     .insert(routeStops)
@@ -126,12 +124,13 @@ export async function createRouteRequest(
           .returning()
       : [];
 
-  await db.insert(routeStatusHistory).values({
+  const creationHistoryValues: typeof routeStatusHistory.$inferInsert = {
     routeId: route.id,
     fromStatus: null,
     toStatus: "CREADO",
     actorType: "human",
-  });
+  };
+  await db.insert(routeStatusHistory).values(creationHistoryValues);
 
   await publishTenantEvent(tenantId, "route.created", { routeId: route.id, code: route.code });
   return { route, stops: stopRows, cargoItems: cargoRows };
@@ -230,7 +229,8 @@ export async function parkRoute(tenantId: string, routeId: string, actor: Actor)
   const { stops } = await getRouteWithStops(tenantId, routeId);
   const origin = stops.find((s) => s.type === "origen");
   if (origin && origin.status !== "completada") {
-    await db.update(routeStops).set({ status: "completada", arrivedAt: new Date() }).where(eq(routeStops.id, origin.id));
+    const arrivalValues: Partial<typeof routeStops.$inferInsert> = { status: "completada", arrivedAt: new Date() };
+    await db.update(routeStops).set(arrivalValues).where(eq(routeStops.id, origin.id));
   }
   return updated;
 }
@@ -253,10 +253,8 @@ export async function arriveAtStop(tenantId: string, routeId: string, stopId: st
     throw new RouteServiceError("Hay paradas anteriores sin marcar - deben ir en orden");
   }
 
-  await db
-    .update(routeStops)
-    .set({ status: "completada", arrivedAt: new Date() })
-    .where(eq(routeStops.id, stopId));
+  const stopArrivalValues: Partial<typeof routeStops.$inferInsert> = { status: "completada", arrivedAt: new Date() };
+  await db.update(routeStops).set(stopArrivalValues).where(eq(routeStops.id, stopId));
 
   const isLast = stop.sequenceOrder === Math.max(...stops.map((s) => s.sequenceOrder));
   const updated = isLast
@@ -276,7 +274,8 @@ export async function arriveAtStop(tenantId: string, routeId: string, stopId: st
 
 export async function recordLocationPing(tenantId: string, routeId: string, lat: number, lng: number) {
   await requireRoute(tenantId, routeId);
-  const ping = firstOrThrow(await db.insert(locationPings).values({ routeId, lat, lng }).returning());
+  const pingValues: typeof locationPings.$inferInsert = { routeId, lat, lng };
+  const ping = firstOrThrow(await db.insert(locationPings).values(pingValues).returning());
   await publishTenantEvent(tenantId, "route.location", { routeId, lat, lng, recordedAt: ping.recordedAt });
   return ping;
 }
@@ -289,8 +288,10 @@ export async function reportIncident(
   photo?: string
 ) {
   await requireRoute(tenantId, routeId);
-  const incident = firstOrThrow(await db.insert(routeIncidents).values({ routeId, severity, description, photo }).returning());
-  await db.update(routes).set({ hasIncident: true }).where(eq(routes.id, routeId));
+  const incidentValues: typeof routeIncidents.$inferInsert = { routeId, severity, description, photo };
+  const incident = firstOrThrow(await db.insert(routeIncidents).values(incidentValues).returning());
+  const hasIncidentValues: Partial<typeof routes.$inferInsert> = { hasIncident: true };
+  await db.update(routes).set(hasIncidentValues).where(eq(routes.id, routeId));
   await publishTenantEvent(tenantId, "route.incident", { routeId, severity, description });
   return incident;
 }
@@ -334,16 +335,18 @@ export async function checkAvailability(
 
 export async function rescheduleStop(tenantId: string, routeId: string, stopId: string, newPlannedAt: Date, actor: Actor) {
   const route = await requireRoute(tenantId, routeId);
-  const [stop] = await db.update(routeStops).set({ plannedAt: newPlannedAt }).where(eq(routeStops.id, stopId)).returning();
+  const plannedAtValues: Partial<typeof routeStops.$inferInsert> = { plannedAt: newPlannedAt };
+  const [stop] = await db.update(routeStops).set(plannedAtValues).where(eq(routeStops.id, stopId)).returning();
   if (!stop) throw new RouteServiceError("Parada no encontrada", 404);
 
-  await db.insert(routeStatusHistory).values({
+  const rescheduleHistoryValues: typeof routeStatusHistory.$inferInsert = {
     routeId,
     toStatus: route.status,
     actorType: actor.type,
     actorUserId: actor.userId,
     note: `Cambio de horario en parada "${stop.label}" a ${newPlannedAt.toISOString()}`,
-  });
+  };
+  await db.insert(routeStatusHistory).values(rescheduleHistoryValues);
 
   await publishTenantEvent(tenantId, "route.schedule_changed", { routeId, stopId, newPlannedAt });
   return stop;

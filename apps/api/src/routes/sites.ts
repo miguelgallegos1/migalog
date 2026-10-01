@@ -38,7 +38,8 @@ siteRoutes.post("/", requireRole(...MANAGE_ROLES), async (c) => {
   // usando registros distintos - se bloquea acá, en el alta.
   const [dup] = await db.select({ id: sites.id }).from(sites).where(and(eq(sites.clientId, clientId), eq(sites.name, body.name)));
   if (dup) return c.json({ error: `Ya existe un sitio llamado "${body.name}"` }, 409);
-  const [row] = await db.insert(sites).values({ tenantId, clientId, ...body }).returning();
+  const newSiteValues: typeof sites.$inferInsert = { tenantId, clientId, ...body };
+  const [row] = await db.insert(sites).values(newSiteValues).returning();
   return c.json(row, 201);
 });
 
@@ -64,9 +65,10 @@ siteRoutes.patch("/:id", requireRole(...MANAGE_ROLES), async (c) => {
 siteRoutes.patch("/:id/active", requireRole(...MANAGE_ROLES), async (c) => {
   const clientId = c.get("clientId") as string;
   const { active } = z.object({ active: z.boolean() }).parse(await c.req.json());
+  const activeValues: Partial<typeof sites.$inferInsert> = { active };
   const [row] = await db
     .update(sites)
-    .set({ active })
+    .set(activeValues)
     .where(and(eq(sites.id, param(c, "id")), eq(sites.clientId, clientId)))
     .returning();
   if (!row) return c.json({ error: "No encontrado" }, 404);

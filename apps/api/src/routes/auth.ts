@@ -139,7 +139,9 @@ authRoutes.post("/setup-password", async (c) => {
   if (!user || !usesPassword(user.role)) return c.json({ error: "Solicitud inválida" }, 400);
 
   const passwordHash = await hashSecret(password);
-  await db.update(users).set({ passwordHash }).where(eq(users.id, userId));
+  // Variable, no literal directo en .set() - ver comentario en NewUser (schema.ts).
+  const passwordValues: Partial<NewUser> = { passwordHash };
+  await db.update(users).set(passwordValues).where(eq(users.id, userId));
   return c.json({ ok: true });
 });
 
@@ -155,16 +157,13 @@ authRoutes.post("/setup-pin", async (c) => {
   if (!user || !usesPin(user.role)) return c.json({ error: "Solicitud inválida" }, 400);
 
   const pinHash = await hashSecret(pin);
-  await db.update(users).set({ pinHash }).where(eq(users.id, userId));
+  const pinValues: Partial<NewUser> = { pinHash };
+  await db.update(users).set(pinValues).where(eq(users.id, userId));
 
   const deviceRefreshToken = randomToken();
   const sessionCredentialHash = await hashSecret(deviceRefreshToken);
-  const device = firstOrThrow(
-    await db
-      .insert(devices)
-      .values({ userId, label: deviceLabel, sessionCredentialHash })
-      .returning()
-  );
+  const deviceValues: typeof devices.$inferInsert = { userId, label: deviceLabel, sessionCredentialHash };
+  const device = firstOrThrow(await db.insert(devices).values(deviceValues).returning());
 
   // deviceRefreshToken se devuelve una sola vez: el cliente lo guarda cifrado en el dispositivo
   // y lo usa junto con PIN/biometría para refrescar la sesión sin volver a escribir el PIN cada vez.
@@ -202,13 +201,15 @@ authRoutes.post("/login-pin", async (c) => {
     const attempts = device.failedAttempts + 1;
     const lockedUntil =
       attempts >= FAILED_ATTEMPTS_LIMIT ? new Date(Date.now() + LOCK_MINUTES * 60_000) : null;
-    await db.update(devices).set({ failedAttempts: attempts, lockedUntil }).where(eq(devices.id, deviceId));
+    const lockoutValues: Partial<typeof devices.$inferInsert> = { failedAttempts: attempts, lockedUntil };
+    await db.update(devices).set(lockoutValues).where(eq(devices.id, deviceId));
     return c.json({ error: "PIN incorrecto" }, 401);
   }
 
   if (!(await isAccountUsable(user))) return c.json({ error: "Empresa desactivada" }, 401);
 
-  await db.update(devices).set({ failedAttempts: 0, lockedUntil: null }).where(eq(devices.id, deviceId));
+  const resetAttemptsValues: Partial<typeof devices.$inferInsert> = { failedAttempts: 0, lockedUntil: null };
+  await db.update(devices).set(resetAttemptsValues).where(eq(devices.id, deviceId));
   const accessToken = await signAccessToken({ sub: user.id, tenantId: user.tenantId, clientId: user.clientId, role: user.role });
   return c.json({ accessToken, user: await buildSessionUser(user) });
 });
@@ -252,9 +253,8 @@ authRoutes.post("/device/register", requireAuth, async (c) => {
 
   const deviceRefreshToken = randomToken();
   const sessionCredentialHash = await hashSecret(deviceRefreshToken);
-  const device = firstOrThrow(
-    await db.insert(devices).values({ userId, label: deviceLabel, sessionCredentialHash }).returning()
-  );
+  const registerDeviceValues: typeof devices.$inferInsert = { userId, label: deviceLabel, sessionCredentialHash };
+  const device = firstOrThrow(await db.insert(devices).values(registerDeviceValues).returning());
 
   return c.json({ deviceId: device.id, deviceRefreshToken });
 });
@@ -276,6 +276,7 @@ authRoutes.post("/device/enable-biometric", requireAuth, async (c) => {
     .where(and(eq(devices.id, deviceId), eq(devices.userId, userId)));
   if (!device) return c.json({ error: "Dispositivo no encontrado" }, 404);
 
-  await db.update(devices).set({ webauthnCredentialId }).where(eq(devices.id, deviceId));
+  const biometricValues: Partial<typeof devices.$inferInsert> = { webauthnCredentialId };
+  await db.update(devices).set(biometricValues).where(eq(devices.id, deviceId));
   return c.json({ ok: true });
 });

@@ -41,7 +41,7 @@ whatsappRoutes.post("/webhook", async (c) => {
 
   const result = await handleIncomingWhatsAppMessage(tenant.id, body.from, body.text);
 
-  await db.insert(aiAgentActions).values({
+  const agentActionValues: typeof aiAgentActions.$inferInsert = {
     tenantId: tenant.id,
     routeId: result.routeId,
     fromPhone: body.from,
@@ -50,7 +50,8 @@ whatsappRoutes.post("/webhook", async (c) => {
     ruleApplied: result.ruleApplied,
     escalated: result.escalated,
     replyMessage: result.reply,
-  });
+  };
+  await db.insert(aiAgentActions).values(agentActionValues);
 
   // En producción, result.reply se envía de vuelta por la Cloud API de WhatsApp.
   return c.json({ reply: result.reply, escalated: result.escalated });

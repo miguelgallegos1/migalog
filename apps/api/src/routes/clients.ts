@@ -80,9 +80,10 @@ const updateSchema = z.object({ ruc: z.string().min(1), name: z.string().min(1) 
 clientRoutes.patch("/:id", requireRole("admin_empresa", "super_admin"), async (c) => {
   const tenantId = c.get("tenantId") as string;
   const body = updateSchema.parse(await c.req.json());
+  const updateValues: Partial<typeof clients.$inferInsert> = { ruc: body.ruc, name: body.name };
   const [row] = await db
     .update(clients)
-    .set({ ruc: body.ruc, name: body.name })
+    .set(updateValues)
     .where(and(eq(clients.id, param(c, "id")), eq(clients.tenantId, tenantId)))
     .returning();
   if (!row) return c.json({ error: "No encontrada" }, 404);
@@ -92,9 +93,10 @@ clientRoutes.patch("/:id", requireRole("admin_empresa", "super_admin"), async (c
 clientRoutes.patch("/:id/active", requireRole("admin_empresa", "super_admin"), async (c) => {
   const tenantId = c.get("tenantId") as string;
   const { active } = z.object({ active: z.boolean() }).parse(await c.req.json());
+  const activeValues: Partial<typeof clients.$inferInsert> = { active };
   const [row] = await db
     .update(clients)
-    .set({ active })
+    .set(activeValues)
     .where(and(eq(clients.id, param(c, "id")), eq(clients.tenantId, tenantId)))
     .returning();
   if (!row) return c.json({ error: "No encontrada" }, 404);

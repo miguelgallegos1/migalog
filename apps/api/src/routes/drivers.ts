@@ -103,20 +103,16 @@ driverRoutes.post("/", requireRole(...PROVIDER_MANAGE_ROLES, ...CLIENT_MANAGE_RO
   const user = firstOrThrow(
     await db.insert(users).values(newUserValues).returning()
   );
-  const driver = firstOrThrow(
-    await db
-      .insert(drivers)
-      .values({
-        tenantId,
-        clientId,
-        userId: user.id,
-        vehicleId: body.vehicleId,
-        licenseExpiresAt: body.licenseExpiresAt,
-        licensePhotoFront: body.licensePhotoFront,
-        licensePhotoBack: body.licensePhotoBack,
-      })
-      .returning()
-  );
+  const newDriverValues: typeof drivers.$inferInsert = {
+    tenantId,
+    clientId,
+    userId: user.id,
+    vehicleId: body.vehicleId,
+    licenseExpiresAt: body.licenseExpiresAt,
+    licensePhotoFront: body.licensePhotoFront,
+    licensePhotoBack: body.licensePhotoBack,
+  };
+  const driver = firstOrThrow(await db.insert(drivers).values(newDriverValues).returning());
 
   const setupToken = await signSetupToken(user.id);
   return c.json({ user, driver, setupToken }, 201);
@@ -148,7 +144,8 @@ driverRoutes.patch("/:id/status", requireRole(...PROVIDER_MANAGE_ROLES, ...CLIEN
   const { status } = statusSchema.parse(await c.req.json());
   const conditions = [eq(drivers.id, param(c, "id")), eq(drivers.tenantId, tenantId)];
   conditions.push(isClientRole(role) ? eq(drivers.clientId, c.get("clientId") as string) : isNull(drivers.clientId));
-  const [row] = await db.update(drivers).set({ status }).where(and(...conditions)).returning(DRIVER_LIGHT_COLUMNS);
+  const statusValues: Partial<typeof drivers.$inferInsert> = { status };
+  const [row] = await db.update(drivers).set(statusValues).where(and(...conditions)).returning(DRIVER_LIGHT_COLUMNS);
   if (!row) return c.json({ error: "No encontrado" }, 404);
   return c.json(row);
 });

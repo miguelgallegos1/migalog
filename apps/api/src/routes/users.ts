@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { ROLES, isClientRole, phoneSchema } from "@migalog/shared";
 import { db } from "../db/client.js";
-import { users } from "../db/schema.js";
+import { users, type NewUser } from "../db/schema.js";
 import { and, eq } from "drizzle-orm";
 import { requireAuth, requireTenant, requireRole, type AppVariables } from "../middleware/auth.js";
 import { param } from "../lib/http.js";
@@ -114,9 +114,10 @@ userRoutes.patch("/:id/active", requireRole("admin_empresa", "cliente_admin"), a
     return c.json({ error: SOLE_ADMIN_ERROR }, 409);
   }
 
+  const activeValues: Partial<NewUser> = { active };
   const [row] = await db
     .update(users)
-    .set({ active })
+    .set(activeValues)
     .where(eq(users.id, id))
     .returning({ id: users.id, name: users.name, role: users.role, phone: users.phone, active: users.active });
   return c.json(row);
