@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { usesPassword, usesPin, isClientRole, inviteUserSchema, loginPasswordSchema, loginPinSchema } from "@migalog/shared";
 import { db } from "../db/client.js";
-import { users, devices, clients, tenants } from "../db/schema.js";
+import { users, devices, clients, tenants, type NewUser } from "../db/schema.js";
 import { eq, and } from "drizzle-orm";
 import { hashSecret, verifySecret, randomToken } from "../lib/crypto.js";
 import { firstOrThrow } from "../lib/db-helpers.js";
@@ -122,7 +122,7 @@ authRoutes.post(
           role: body.role,
           name: body.name,
           phone: body.phone,
-        })
+        } satisfies NewUser)
         .returning()
     );
 

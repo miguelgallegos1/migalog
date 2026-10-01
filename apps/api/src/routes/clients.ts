@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { phoneSchema } from "@migalog/shared";
 import { db } from "../db/client.js";
-import { clients, users } from "../db/schema.js";
+import { clients, users, type NewUser } from "../db/schema.js";
 import { and, asc, eq } from "drizzle-orm";
 import { signSetupToken } from "../lib/jwt.js";
 import { firstOrThrow, isForeignKeyViolation } from "../lib/db-helpers.js";
@@ -58,7 +58,7 @@ clientRoutes.post("/", requireRole("admin_empresa", "super_admin"), async (c) =>
   const admin = firstOrThrow(
     await db
       .insert(users)
-      .values({ tenantId, clientId: client.id, role: "cliente_admin", name: body.adminName, phone: body.adminPhone })
+      .values({ tenantId, clientId: client.id, role: "cliente_admin", name: body.adminName, phone: body.adminPhone } satisfies NewUser)
       .returning()
   );
 

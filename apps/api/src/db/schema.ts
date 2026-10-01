@@ -93,6 +93,13 @@ export const users = pgTable("users", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+// Para anotar los objetos que se pasan a insert(users).values(...) con "satisfies NewUser" -
+// evita un problema de TypeScript con sobrecargas genéricas de Drizzle donde un objeto
+// literal con columnas opcionales/nullable (tenantId, clientId, passwordHash, pinHash)
+// mezcladas con las NOT NULL (role, name, phone) puede fallar "excess property checking"
+// contra la sobrecarga equivocada según la versión exacta del compilador.
+export type NewUser = typeof users.$inferInsert;
+
 /**
  * Patrón de auth para roles móviles: la invitación registra el dispositivo y guarda
  * una credencial de sesión de larga duración cifrada. El PIN/biometría del usuario

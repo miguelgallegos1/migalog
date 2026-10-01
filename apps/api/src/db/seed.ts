@@ -1,5 +1,5 @@
 import { db } from "./client.js";
-import { tenants, clients, users, vehicles, drivers, routes, routeStops, routeStatusHistory, devices } from "./schema.js";
+import { tenants, clients, users, vehicles, drivers, routes, routeStops, routeStatusHistory, devices, type NewUser } from "./schema.js";
 import { hashSecret, randomToken } from "../lib/crypto.js";
 import { generateRouteCode } from "../lib/ids.js";
 import { firstOrThrow } from "../lib/db-helpers.js";
@@ -22,7 +22,7 @@ async function main() {
         name: "Dueño MigaLog",
         phone: "+50588880099",
         passwordHash: await hashSecret("Demo1234!"),
-      })
+      } satisfies NewUser)
       .returning()
   );
 
@@ -30,21 +30,21 @@ async function main() {
   const adminEmpresa = firstOrThrow(
     await db
       .insert(users)
-      .values({ tenantId: tenant.id, role: "admin_empresa", name: "Admin Demo", phone: "+50588880000", passwordHash: await hashSecret("Demo1234!") })
+      .values({ tenantId: tenant.id, role: "admin_empresa", name: "Admin Demo", phone: "+50588880000", passwordHash: await hashSecret("Demo1234!") } satisfies NewUser)
       .returning()
   );
 
   const coordinador = firstOrThrow(
     await db
       .insert(users)
-      .values({ tenantId: tenant.id, role: "coordinador", name: "Coordinador Demo", phone: "+50588880004", passwordHash: await hashSecret("Demo1234!") })
+      .values({ tenantId: tenant.id, role: "coordinador", name: "Coordinador Demo", phone: "+50588880004", passwordHash: await hashSecret("Demo1234!") } satisfies NewUser)
       .returning()
   );
 
   const conductorUser = firstOrThrow(
     await db
       .insert(users)
-      .values({ tenantId: tenant.id, role: "conductor", name: "Conductor Demo", phone: "+50588880001", pinHash: await hashSecret("123456") })
+      .values({ tenantId: tenant.id, role: "conductor", name: "Conductor Demo", phone: "+50588880001", pinHash: await hashSecret("123456") } satisfies NewUser)
       .returning()
   );
 
@@ -56,35 +56,35 @@ async function main() {
   const clienteAdmin = firstOrThrow(
     await db
       .insert(users)
-      .values({ tenantId: tenant.id, clientId: client.id, role: "cliente_admin", name: "Admin Cliente Demo", phone: "+50588880010", passwordHash: await hashSecret("Demo1234!") })
+      .values({ tenantId: tenant.id, clientId: client.id, role: "cliente_admin", name: "Admin Cliente Demo", phone: "+50588880010", passwordHash: await hashSecret("Demo1234!") } satisfies NewUser)
       .returning()
   );
 
   const clienteCoordinador = firstOrThrow(
     await db
       .insert(users)
-      .values({ tenantId: tenant.id, clientId: client.id, role: "cliente_coordinador", name: "Coordinador Cliente Demo", phone: "+50588880011", passwordHash: await hashSecret("Demo1234!") })
+      .values({ tenantId: tenant.id, clientId: client.id, role: "cliente_coordinador", name: "Coordinador Cliente Demo", phone: "+50588880011", passwordHash: await hashSecret("Demo1234!") } satisfies NewUser)
       .returning()
   );
 
   const clienteJefe = firstOrThrow(
     await db
       .insert(users)
-      .values({ tenantId: tenant.id, clientId: client.id, role: "cliente_jefe", name: "Jefe Cliente Demo", phone: "+50588880012", passwordHash: await hashSecret("Demo1234!") })
+      .values({ tenantId: tenant.id, clientId: client.id, role: "cliente_jefe", name: "Jefe Cliente Demo", phone: "+50588880012", passwordHash: await hashSecret("Demo1234!") } satisfies NewUser)
       .returning()
   );
 
   const clienteVisualizador = firstOrThrow(
     await db
       .insert(users)
-      .values({ tenantId: tenant.id, clientId: client.id, role: "cliente_visualizador", name: "Visualizador Cliente Demo", phone: "+50588880013", passwordHash: await hashSecret("Demo1234!") })
+      .values({ tenantId: tenant.id, clientId: client.id, role: "cliente_visualizador", name: "Visualizador Cliente Demo", phone: "+50588880013", passwordHash: await hashSecret("Demo1234!") } satisfies NewUser)
       .returning()
   );
 
   const solicitanteUser = firstOrThrow(
     await db
       .insert(users)
-      .values({ tenantId: tenant.id, clientId: client.id, role: "cliente_solicitante", name: "Solicitante Demo", phone: "+50588880002", pinHash: await hashSecret("654321") })
+      .values({ tenantId: tenant.id, clientId: client.id, role: "cliente_solicitante", name: "Solicitante Demo", phone: "+50588880002", pinHash: await hashSecret("654321") } satisfies NewUser)
       .returning()
   );
 

@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { phoneSchema } from "@migalog/shared";
 import { db } from "../db/client.js";
-import { tenants, users } from "../db/schema.js";
+import { tenants, users, type NewUser } from "../db/schema.js";
 import { asc, eq } from "drizzle-orm";
 import { signSetupToken } from "../lib/jwt.js";
 import { firstOrThrow, isForeignKeyViolation } from "../lib/db-helpers.js";
@@ -72,7 +72,7 @@ tenantRoutes.post("/", async (c) => {
   const admin = firstOrThrow(
     await db
       .insert(users)
-      .values({ tenantId: tenant.id, role: "admin_empresa", name: body.adminName, phone: body.adminPhone })
+      .values({ tenantId: tenant.id, role: "admin_empresa", name: body.adminName, phone: body.adminPhone } satisfies NewUser)
       .returning()
   );
 

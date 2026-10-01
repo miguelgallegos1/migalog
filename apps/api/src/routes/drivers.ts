@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { isClientRole, phoneSchema, base64PhotoSchema } from "@migalog/shared";
 import { db } from "../db/client.js";
-import { drivers, users, vehicles } from "../db/schema.js";
+import { drivers, users, vehicles, type NewUser } from "../db/schema.js";
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import { requireAuth, requireTenant, requireRole, type AppVariables } from "../middleware/auth.js";
 import { param } from "../lib/http.js";
@@ -101,7 +101,7 @@ driverRoutes.post("/", requireRole(...PROVIDER_MANAGE_ROLES, ...CLIENT_MANAGE_RO
   const user = firstOrThrow(
     await db
       .insert(users)
-      .values({ tenantId, clientId, role: clientId ? "cliente_conductor" : "conductor", name: body.name, phone: body.phone })
+      .values({ tenantId, clientId, role: clientId ? "cliente_conductor" : "conductor", name: body.name, phone: body.phone } satisfies NewUser)
       .returning()
   );
   const driver = firstOrThrow(
