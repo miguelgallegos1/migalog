@@ -18,13 +18,14 @@
     "hono": "^4.6.9",
     "@hono/node-server": "^1.13.5",
     "zod": "^3.23.8",
-    "argon2": "^0.41.1",
+    "bcryptjs": "^2.4.3",
     "jose": "^5.9.6",
     "nanoid": "^5.0.8",
     "ably": "^2.5.0"
   },
   "devDependencies": {
     "@types/node": "^22.9.0",
+    "@types/bcryptjs": "^2.4.6",
     "drizzle-kit": "^0.27.2",
     "tsx": "^4.19.2",
     "typescript": "^5.6.3"
