@@ -7,9 +7,9 @@
     "node": ">=20"
   },
   "scripts": {
-    "dev": "pnpm --parallel --filter ./apps/* run dev",
-    "dev:api": "pnpm --filter @migalog/api run dev",
-    "dev:web": "pnpm --filter @migalog/web run dev",
+    "dev": "pnpm --filter @migalog/shared run build && pnpm --parallel --filter ./apps/* run dev",
+    "dev:api": "pnpm --filter @migalog/shared run build && pnpm --filter @migalog/api run dev",
+    "dev:web": "pnpm --filter @migalog/shared run build && pnpm --filter @migalog/web run dev",
     "build": "pnpm --filter ./apps/* run build",
     "db:generate": "pnpm --filter @migalog/api run db:generate",
     "db:migrate": "pnpm --filter @migalog/api run db:migrate",
