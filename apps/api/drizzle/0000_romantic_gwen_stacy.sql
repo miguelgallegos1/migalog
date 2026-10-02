@@ -4,19 +4,6 @@ CREATE TYPE "public"."route_status" AS ENUM('CREADO', 'APROBADO', 'RECHAZADO', '
 CREATE TYPE "public"."route_template_status" AS ENUM('pendiente', 'aprobada', 'rechazada');--> statement-breakpoint
 CREATE TYPE "public"."stop_status" AS ENUM('pendiente', 'en_curso', 'completada', 'omitida');--> statement-breakpoint
 CREATE TYPE "public"."stop_type" AS ENUM('origen', 'parada', 'destino');--> statement-breakpoint
-CREATE TABLE IF NOT EXISTS "ai_agent_actions" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"tenant_id" uuid NOT NULL,
-	"route_id" uuid,
-	"from_phone" text NOT NULL,
-	"inbound_message" text NOT NULL,
-	"decision" text NOT NULL,
-	"rule_applied" text,
-	"escalated" boolean DEFAULT false NOT NULL,
-	"reply_message" text,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL
-);
---> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "clients" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"tenant_id" uuid NOT NULL,
@@ -203,18 +190,6 @@ CREATE TABLE IF NOT EXISTS "vehicles" (
 	"status" text DEFAULT 'activo' NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
---> statement-breakpoint
-DO $$ BEGIN
- ALTER TABLE "ai_agent_actions" ADD CONSTRAINT "ai_agent_actions_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE no action ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
---> statement-breakpoint
-DO $$ BEGIN
- ALTER TABLE "ai_agent_actions" ADD CONSTRAINT "ai_agent_actions_route_id_routes_id_fk" FOREIGN KEY ("route_id") REFERENCES "public"."routes"("id") ON DELETE no action ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
 --> statement-breakpoint
 DO $$ BEGIN
  ALTER TABLE "clients" ADD CONSTRAINT "clients_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE no action ON UPDATE no action;

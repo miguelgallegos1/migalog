@@ -299,17 +299,3 @@ export const locationPings = pgTable("location_pings", {
   lng: doublePrecision("lng").notNull(),
   recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow(),
 });
-
-/** Auditoría de cada intervención del agente de IA coordinador (vía WhatsApp). */
-export const aiAgentActions = pgTable("ai_agent_actions", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
-  routeId: uuid("route_id").references(() => routes.id),
-  fromPhone: text("from_phone").notNull(),
-  inboundMessage: text("inbound_message").notNull(),
-  decision: text("decision").notNull(),
-  ruleApplied: text("rule_applied"),
-  escalated: boolean("escalated").notNull().default(false),
-  replyMessage: text("reply_message"),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
