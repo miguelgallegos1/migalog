@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch --env-file=.env src/dev-server.ts",
-    "build": "echo 'Sin paso de build: Vercel empaqueta api/index.ts directo desde el código fuente (como hace Vite con el frontend), sin tipar - el chequeo de tipos real vive en el script typecheck, aparte'",
+    "build": "exit 0",
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/db/migrate.ts",
