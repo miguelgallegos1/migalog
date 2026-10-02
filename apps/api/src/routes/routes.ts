@@ -85,7 +85,12 @@ routeRoutes.post(
       if (!client) return c.json({ error: "Empresa cliente no encontrada" }, 404);
     }
 
-    const result = await routeService.createRouteRequest(tenantId, { ...body, clientId });
+    // Variable, no objeto literal directo (ni vía spread) como argumento - mismo motivo que
+    // los insert/update de Drizzle (ver schema.ts): un literal fresco ahí puede disparar un
+    // chequeo de tipos más estricto que no matchea contra el tipo inferido de Zod en el
+    // entorno de build de Vercel, aunque localmente compile limpio.
+    const createInput = { ...body, clientId } as Parameters<typeof routeService.createRouteRequest>[1];
+    const result = await routeService.createRouteRequest(tenantId, createInput);
     return c.json(result, 201);
   }
 );

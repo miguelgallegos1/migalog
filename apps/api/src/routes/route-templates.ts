@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import { createRouteTemplateSchema, approveRouteTemplateSchema, isClientRole, type CreateRouteTemplateInput } from "@migalog/shared";
+import { createRouteTemplateSchema, approveRouteTemplateSchema, isClientRole } from "@migalog/shared";
 import { db } from "../db/client.js";
 import { routeTemplates, routeTemplateStops, sites } from "../db/schema.js";
 import { and, asc, eq, inArray, ne, or } from "drizzle-orm";
@@ -89,7 +89,13 @@ type ItineraryValidation =
  * copiada casi textual en los dos lugares. `excludeId` es la propia propuesta al corregir
  * (para no chocar consigo misma en el chequeo de duplicados).
  */
-async function validateItinerary(tenantId: string, clientId: string, body: CreateRouteTemplateInput, excludeId?: string): Promise<ItineraryValidation> {
+// Forma escrita a mano (no CreateRouteTemplateInput importado de @migalog/shared) a propósito:
+// ese tipo cruza el límite del paquete compartido vía z.infer, y en el entorno de build de
+// Vercel esa inferencia cruzada resultó incompleta (ver commits anteriores) - acá solo se
+// usan 4 campos, así que se tipan directo sin depender de esa resolución.
+type ItinerarySites = { billingSiteId: string; originSiteId: string; destinationSiteId: string; stops: { siteId: string }[] };
+
+async function validateItinerary(tenantId: string, clientId: string, body: ItinerarySites, excludeId?: string): Promise<ItineraryValidation> {
   const citedIds = [body.billingSiteId, body.originSiteId, body.destinationSiteId, ...body.stops.map((s) => s.siteId)];
   const foundSites = await db.select().from(sites).where(and(eq(sites.tenantId, tenantId), eq(sites.clientId, clientId), inArray(sites.id, citedIds)));
   const siteById = new Map(foundSites.map((s) => [s.id, s] as const));
@@ -153,8 +159,11 @@ routeTemplateRoutes.post(
     // Todos los sitios citados deben existir, ser del tenant, y ser de la MISMA empresa
     // cliente que propone (no se puede armar una ruta con sitios de otra empresa) - además
     // arma el nombre y descarta duplicados (ver validateItinerary()).
-    const validation = await validateItinerary(tenantId, clientId, body);
-    if (!validation.ok) return c.json({ error: validation.error }, validation.status);
+    const validation = await validateItinerary(tenantId, clientId, body as any);
+    if (!validation.ok) {
+      const rejected = validation as { ok: false; error: string; status: 400 | 409 };
+      return c.json({ error: rejected.error }, rejected.status);
+    }
     const { name } = validation;
 
     const newTemplateValues = {
@@ -199,8 +208,11 @@ routeTemplateRoutes.post("/:id/resubmit", requireRole("cliente_admin", "cliente_
     return c.json({ error: "Esta ruta no se puede corregir" }, 403);
   }
 
-  const validation = await validateItinerary(tenantId, clientId, body, id);
-  if (!validation.ok) return c.json({ error: validation.error }, validation.status);
+  const validation = await validateItinerary(tenantId, clientId, body as any, id);
+  if (!validation.ok) {
+    const rejected = validation as { ok: false; error: string; status: 400 | 409 };
+    return c.json({ error: rejected.error }, rejected.status);
+  }
   const { name } = validation;
 
   const resubmitValues = {
