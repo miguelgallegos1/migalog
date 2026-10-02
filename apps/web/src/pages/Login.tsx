@@ -28,11 +28,12 @@ const ShieldIcon = () => (
     <path d="m9 12 2 2 4-4" />
   </svg>
 );
+// Burbuja de chat (no un sobre de correo): el código de invitación llega por WhatsApp, no
+// por mail - en ningún lado de la app se invita por correo.
 const InviteIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-6 w-6">
-    <rect x="3" y="6" width="18" height="13" rx="2" />
-    <path d="m3.5 7 8.5 6 8.5-6" />
-    <path d="M17 3v4M15 5h4" />
+    <path d="M12 3C7 3 3 6.6 3 11c0 2.1.9 4 2.4 5.4L4.5 20l3.9-1.3C9.5 19.2 10.7 19.5 12 19.5c5 0 9-3.6 9-8S17 3 12 3Z" />
+    <path d="M8 10.5h8M8 13.5h5" />
   </svg>
 );
 const FingerprintIcon = () => (
