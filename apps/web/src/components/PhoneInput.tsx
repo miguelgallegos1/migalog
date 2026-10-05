@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { COUNTRY_CODES, defaultDialCode, dialFromValue, localDigits } from "../lib/phone";
+import { useEffect, useRef, useState } from "react";
+import { COUNTRY_CODES, defaultDialCode, dialFromValue, fetchServerDial, localDigits } from "../lib/phone";
 
 type PhoneInputProps = {
   /** Número completo en formato internacional ("+593991234567") o "" si está vacío. */
@@ -21,11 +21,24 @@ type PhoneInputProps = {
  */
 export function PhoneInput({ value, onChange, label, error, id, name, required, containerClassName = "" }: PhoneInputProps) {
   const [dial, setDial] = useState(() => dialFromValue(value) ?? defaultDialCode());
+  const userChose = useRef(false);
 
   useEffect(() => {
     const fromValue = dialFromValue(value);
     if (fromValue && fromValue !== dial) setDial(fromValue);
   }, [value, dial]);
+
+  // Si el campo arranca vacío, el código correcto viene de la IP (la API lo resuelve); el
+  // detectado en el navegador queda solo de respaldo mientras tanto o si falla.
+  useEffect(() => {
+    if (value || userChose.current) return;
+    let active = true;
+    fetchServerDial().then((d) => {
+      if (active && d && !userChose.current) setDial(d);
+    });
+    return () => { active = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const digits = localDigits(value, dial);
   const inputId = id ?? name;
@@ -46,6 +59,7 @@ export function PhoneInput({ value, onChange, label, error, id, name, required, 
           aria-label="Código de país"
           value={dial}
           onChange={(e) => {
+            userChose.current = true;
             setDial(e.target.value);
             emit(e.target.value, digits);
           }}
@@ -66,7 +80,10 @@ export function PhoneInput({ value, onChange, label, error, id, name, required, 
           aria-invalid={!!error}
           placeholder="991234567"
           value={digits}
-          onChange={(e) => emit(dial, e.target.value.replace(/\D/g, "").replace(/^0+/, ""))}
+          onChange={(e) => {
+            userChose.current = true;
+            emit(dial, e.target.value.replace(/\D/g, "").replace(/^0+/, ""));
+          }}
           className={`min-w-0 flex-1 rounded-md border bg-slate-50 px-2.5 py-2 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500 ${
             error
               ? "border-red-400 focus:border-red-500 focus:ring-2 focus:ring-red-500/30 dark:border-red-500/70"

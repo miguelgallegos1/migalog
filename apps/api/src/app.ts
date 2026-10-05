@@ -29,6 +29,10 @@ app.get("/", (c) => c.json({ name: "MigaLog API", status: "ok" }));
 
 app.get("/health", (c) => c.json({ ok: true }));
 
+// País (código ISO) desde la IP del pedido - Vercel lo agrega solo en el header. Lo usa el
+// front para arrancar los teléfonos con el código de país correcto, sin pedir permisos.
+app.get("/geo", (c) => c.json({ country: c.req.header("x-vercel-ip-country") ?? null }));
+
 app.route("/auth", authRoutes);
 app.route("/tenants", tenantRoutes);
 app.route("/users", userRoutes);

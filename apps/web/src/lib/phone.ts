@@ -1,3 +1,5 @@
+import { API_URL } from "./api";
+
 // Código de país por defecto para los campos de teléfono: se deduce del idioma/región del
 // navegador o, si no viene, de la zona horaria. No pide permiso de ubicación. Es una
 // suposición - la persona puede cambiarlo, pero arranca bien en el caso normal.
@@ -67,4 +69,17 @@ export function dialFromValue(value: string): string | null {
 export function localDigits(value: string, dial: string): string {
   const rest = value.startsWith(dial) ? value.slice(dial.length) : value.replace(/^\+\d*/, "");
   return rest.replace(/\D/g, "").replace(/^0+/, "");
+}
+
+let serverDialPromise: Promise<string | null> | null = null;
+
+/** Código de país según la IP de quien abre la app (lo resuelve la API vía el header de Vercel). Null si no se puede. */
+export function fetchServerDial(): Promise<string | null> {
+  if (!serverDialPromise) {
+    serverDialPromise = fetch(`${API_URL}/geo`)
+      .then((r) => (r.ok ? (r.json() as Promise<{ country: string | null }>) : null))
+      .then((j) => (j?.country && DIAL_BY_REGION[j.country]) || null)
+      .catch(() => null);
+  }
+  return serverDialPromise;
 }
