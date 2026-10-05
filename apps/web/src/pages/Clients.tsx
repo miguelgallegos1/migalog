@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "../lib/api";
 import { defaultDialCode } from "../lib/phone";
+import { digitsOnly } from "../lib/number";
 import { PhoneInput } from "../components/PhoneInput";
 import { Button } from "../components/Button";
 import { Input } from "../components/Input";
@@ -15,12 +16,12 @@ type FieldErrors = Partial<Record<keyof FormState, string>>;
 type EditFormState = { ruc: string; name: string };
 type EditFieldErrors = Partial<Record<keyof EditFormState, string>>;
 
-const EMPTY_FORM: FormState = { ruc: "", name: "", adminFirstName: "", adminLastName: "", adminPhone: defaultDialCode() };
+const EMPTY_FORM: FormState = { ruc: "", name: "", adminFirstName: "", adminLastName: "", adminPhone: "" };
 
 /** Validación propia (reemplaza el globo nativo del navegador que dispara el atributo `required`). */
 function validate(form: FormState): FieldErrors {
   const errors: FieldErrors = {};
-  if (!form.ruc.trim()) errors.ruc = "Campo obligatorio";
+  if (!form.ruc.trim()) errors.ruc = "Campo obligatorio"; else if (!/^\d{13}$/.test(form.ruc)) errors.ruc = "El RUC debe tener 13 dígitos";
   if (!form.name.trim()) errors.name = "Campo obligatorio";
   if (!form.adminFirstName.trim()) errors.adminFirstName = "Campo obligatorio";
   if (!form.adminLastName.trim()) errors.adminLastName = "Campo obligatorio";
@@ -30,7 +31,7 @@ function validate(form: FormState): FieldErrors {
 
 function validateEdit(form: EditFormState): EditFieldErrors {
   const errors: EditFieldErrors = {};
-  if (!form.ruc.trim()) errors.ruc = "Campo obligatorio";
+  if (!form.ruc.trim()) errors.ruc = "Campo obligatorio"; else if (!/^\d{13}$/.test(form.ruc)) errors.ruc = "El RUC debe tener 13 dígitos";
   if (!form.name.trim()) errors.name = "Campo obligatorio";
   return errors;
 }
@@ -229,7 +230,7 @@ export default function Clients() {
               <div>
                 <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Datos de la empresa</h3>
                 <div className="mt-2 grid grid-cols-2 gap-3">
-                  <Input label="RUC" placeholder="Ingrese el RUC" value={form.ruc} onChange={(e) => setField("ruc", e.target.value)} error={fieldErrors.ruc} />
+                  <Input label="RUC" placeholder="13 dígitos" inputMode="numeric" maxLength={13} value={form.ruc} onChange={(e) => setField("ruc", digitsOnly(e.target.value))} error={fieldErrors.ruc} />
                   <Input label="Razón social" placeholder="Ingrese la razón social" value={form.name} onChange={(e) => setField("name", e.target.value)} error={fieldErrors.name} />
                 </div>
               </div>
@@ -264,7 +265,7 @@ export default function Clients() {
         <Modal title="Editar empresa cliente" onClose={() => setEditTarget(null)}>
           <form noValidate onSubmit={submitEdit} className="flex flex-col gap-5">
             <div className="grid grid-cols-2 gap-3">
-              <Input label="RUC" placeholder="Ingrese el RUC" value={editForm.ruc} onChange={(e) => setEditField("ruc", e.target.value)} error={editFieldErrors.ruc} />
+              <Input label="RUC" placeholder="13 dígitos" inputMode="numeric" maxLength={13} value={editForm.ruc} onChange={(e) => setEditField("ruc", digitsOnly(e.target.value))} error={editFieldErrors.ruc} />
               <Input label="Razón social" placeholder="Ingrese la razón social" value={editForm.name} onChange={(e) => setEditField("name", e.target.value)} error={editFieldErrors.name} />
             </div>
 

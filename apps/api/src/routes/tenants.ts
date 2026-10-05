@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import { phoneSchema } from "@migalog/shared";
+import { phoneSchema, rucSchema } from "@migalog/shared";
 import { db } from "../db/client.js";
 import { tenants, users } from "../db/schema.js";
 import { asc, eq } from "drizzle-orm";
@@ -35,7 +35,7 @@ tenantRoutes.get("/", async (c) => {
 });
 
 const createTenantSchema = z.object({
-  ruc: z.string().min(1),
+  ruc: rucSchema,
   name: z.string().min(1),
   adminName: z.string().min(1),
   adminPhone: phoneSchema,
@@ -89,7 +89,7 @@ tenantRoutes.patch("/:id/active", async (c) => {
   return c.json(tenant);
 });
 
-const updateTenantSchema = z.object({ ruc: z.string().min(1), name: z.string().min(1) });
+const updateTenantSchema = z.object({ ruc: rucSchema, name: z.string().min(1) });
 
 tenantRoutes.patch("/:id", async (c) => {
   const id = c.req.param("id");

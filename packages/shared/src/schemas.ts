@@ -151,3 +151,6 @@ export const loginPinSchema = z.object({
   deviceId: z.string().min(1),
   pin: z.string().length(6).regex(/^\d{6}$/),
 });
+
+// RUC ecuatoriano: exactamente 13 dígitos.
+export const rucSchema = z.string().regex(/^\d{13}$/, "El RUC debe tener 13 dígitos");
