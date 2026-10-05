@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "../lib/api";
+import { defaultDialCode, initialPhone } from "../lib/phone";
 import { Button } from "../components/Button";
 import { Input } from "../components/Input";
 import { Select } from "../components/Select";
@@ -67,7 +68,7 @@ export default function Users() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [role, setRole] = useState<Role>(inviteOptions[0]!.value);
-  const [phone, setPhone] = useState("");
+  const [phone, setPhone] = useState(initialPhone);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [lastInvite, setLastInvite] = useState<{ setupToken: string; setupMethod: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -78,7 +79,7 @@ export default function Users() {
     setFirstName("");
     setLastName("");
     setRole(inviteOptions[0]!.value);
-    setPhone("");
+    setPhone(initialPhone());
     setFieldErrors({});
     setError(null);
     setLastInvite(null);

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "../lib/api";
+import { defaultDialCode } from "../lib/phone";
 import { Button } from "../components/Button";
 import { Input } from "../components/Input";
 import { Select } from "../components/Select";
@@ -35,7 +36,7 @@ type FormState = {
 
 type FieldErrors = Partial<Record<"name" | "phone" | "licenseExpiresAt", string>>;
 
-const EMPTY_FORM: FormState = { name: "", phone: "", vehicleId: "", licenseExpiresAt: "", licensePhotoFront: null, licensePhotoBack: null };
+const EMPTY_FORM: FormState = { name: "", phone: defaultDialCode(), vehicleId: "", licenseExpiresAt: "", licensePhotoFront: null, licensePhotoBack: null };
 
 function todayISO(): string {
   return new Date().toISOString().slice(0, 10);

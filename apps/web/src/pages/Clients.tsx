@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "../lib/api";
+import { defaultDialCode } from "../lib/phone";
 import { Button } from "../components/Button";
 import { Input } from "../components/Input";
 import { Modal } from "../components/Modal";
@@ -13,7 +14,7 @@ type FieldErrors = Partial<Record<keyof FormState, string>>;
 type EditFormState = { ruc: string; name: string };
 type EditFieldErrors = Partial<Record<keyof EditFormState, string>>;
 
-const EMPTY_FORM: FormState = { ruc: "", name: "", adminFirstName: "", adminLastName: "", adminPhone: "" };
+const EMPTY_FORM: FormState = { ruc: "", name: "", adminFirstName: "", adminLastName: "", adminPhone: defaultDialCode() };
 
 /** Validación propia (reemplaza el globo nativo del navegador que dispara el atributo `required`). */
 function validate(form: FormState): FieldErrors {

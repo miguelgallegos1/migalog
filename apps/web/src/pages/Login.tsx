@@ -7,6 +7,7 @@ import { Logo } from "../components/Logo";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { getStoredDeviceId, getStoredDeviceRefreshToken, getBiometricCredentialId, storeDevice } from "../lib/device";
 import { isBiometricAvailable, verifyBiometricCredential } from "../lib/webauthn";
+import { initialPhone } from "../lib/phone";
 
 type LoginResponse = { accessToken: string; user: SessionUser };
 type SetupPinResponse = { deviceId: string; deviceRefreshToken: string };
@@ -47,7 +48,7 @@ const FingerprintIcon = () => (
 
 export default function Login() {
   const [mode, setMode] = useState<"password" | "pin">("pin");
-  const [phone, setPhone] = useState("");
+  const [phone, setPhone] = useState(initialPhone);
   const [password, setPassword] = useState("");
   const [pin, setPin] = useState("");
   const [setupToken, setSetupToken] = useState("");
