@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "../lib/api";
-import { defaultDialCode, initialPhone } from "../lib/phone";
+import { defaultDialCode } from "../lib/phone";
+import { PhoneInput } from "../components/PhoneInput";
 import { Button } from "../components/Button";
 import { Input } from "../components/Input";
 import { Select } from "../components/Select";
@@ -68,7 +69,7 @@ export default function Users() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [role, setRole] = useState<Role>(inviteOptions[0]!.value);
-  const [phone, setPhone] = useState(initialPhone);
+  const [phone, setPhone] = useState("");
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [lastInvite, setLastInvite] = useState<{ setupToken: string; setupMethod: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -79,7 +80,7 @@ export default function Users() {
     setFirstName("");
     setLastName("");
     setRole(inviteOptions[0]!.value);
-    setPhone(initialPhone());
+    setPhone("");
     setFieldErrors({});
     setError(null);
     setLastInvite(null);
@@ -250,11 +251,10 @@ export default function Users() {
                   <label className="text-xs text-slate-500 dark:text-slate-400">Rol</label>
                   <Select value={role} onChange={(v) => setRole(v as Role)} options={inviteOptions} />
                 </div>
-                <Input
+                <PhoneInput
                   label="Teléfono (WhatsApp)"
-                  placeholder="Ej. +593991234567"
                   value={phone}
-                  onChange={(e) => { setPhone(e.target.value); setFieldErrors((f) => ({ ...f, phone: undefined })); }}
+                  onChange={(v) => { setPhone(v); setFieldErrors((f) => ({ ...f, phone: undefined })); }}
                   error={fieldErrors.phone}
                 />
               </div>
@@ -289,11 +289,10 @@ export default function Users() {
                 <label className="text-xs text-slate-500 dark:text-slate-400">Rol</label>
                 <Select value={editRole} onChange={(v) => setEditRole(v as Role)} options={roleOptions} />
               </div>
-              <Input
+              <PhoneInput
                 label="Teléfono (WhatsApp)"
-                placeholder="Ej. +593991234567"
                 value={editPhone}
-                onChange={(e) => { setEditPhone(e.target.value); setEditFieldErrors((f) => ({ ...f, phone: undefined })); }}
+                onChange={(v) => { setEditPhone(v); setEditFieldErrors((f) => ({ ...f, phone: undefined })); }}
                 error={editFieldErrors.phone}
               />
             </div>

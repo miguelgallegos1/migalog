@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "../lib/api";
 import { defaultDialCode } from "../lib/phone";
+import { PhoneInput } from "../components/PhoneInput";
 import { Button } from "../components/Button";
 import { Input } from "../components/Input";
 import { Select } from "../components/Select";
@@ -266,11 +267,10 @@ export default function Drivers() {
                   onChange={(e) => { setForm((f) => ({ ...f, name: e.target.value })); setFieldErrors((f) => ({ ...f, name: undefined })); }}
                   error={fieldErrors.name}
                 />
-                <Input
+                <PhoneInput
                   label="Teléfono (WhatsApp)"
-                  placeholder="Ingrese el teléfono"
                   value={form.phone}
-                  onChange={(e) => { setForm((f) => ({ ...f, phone: e.target.value })); setFieldErrors((f) => ({ ...f, phone: undefined })); }}
+                  onChange={(v) => { setForm((f) => ({ ...f, phone: v })); setFieldErrors((f) => ({ ...f, phone: undefined })); }}
                   error={fieldErrors.phone}
                 />
                 <div className="flex flex-col gap-1">

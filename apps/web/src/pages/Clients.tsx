@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "../lib/api";
 import { defaultDialCode } from "../lib/phone";
+import { PhoneInput } from "../components/PhoneInput";
 import { Button } from "../components/Button";
 import { Input } from "../components/Input";
 import { Modal } from "../components/Modal";
@@ -240,7 +241,7 @@ export default function Clients() {
                     <Input label="Nombres" placeholder="Ingrese los nombres" value={form.adminFirstName} onChange={(e) => setField("adminFirstName", e.target.value)} error={fieldErrors.adminFirstName} />
                     <Input label="Apellidos" placeholder="Ingrese los apellidos" value={form.adminLastName} onChange={(e) => setField("adminLastName", e.target.value)} error={fieldErrors.adminLastName} />
                   </div>
-                  <Input label="Teléfono (WhatsApp)" type="tel" placeholder="Ej. +593991234567" value={form.adminPhone} onChange={(e) => setField("adminPhone", e.target.value)} error={fieldErrors.adminPhone} />
+                  <PhoneInput label="Teléfono (WhatsApp)" value={form.adminPhone} onChange={(v) => setField("adminPhone", v)} error={fieldErrors.adminPhone} />
                 </div>
               </div>
 

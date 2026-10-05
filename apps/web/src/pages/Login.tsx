@@ -7,16 +7,11 @@ import { Logo } from "../components/Logo";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { getStoredDeviceId, getStoredDeviceRefreshToken, getBiometricCredentialId, storeDevice } from "../lib/device";
 import { isBiometricAvailable, verifyBiometricCredential } from "../lib/webauthn";
-import { initialPhone } from "../lib/phone";
+import { PhoneInput } from "../components/PhoneInput";
 
 type LoginResponse = { accessToken: string; user: SessionUser };
 type SetupPinResponse = { deviceId: string; deviceRefreshToken: string };
 
-const PhoneIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
-    <path d="M6.6 10.8c1.4 2.8 3.8 5.2 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25c1.1.37 2.3.57 3.5.57a1 1 0 0 1 1 1V20a1 1 0 0 1-1 1C10.6 21 3 13.4 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.2.2 2.4.57 3.5a1 1 0 0 1-.25 1Z" />
-  </svg>
-);
 const LockIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
     <rect x="4" y="11" width="16" height="9" rx="2" />
@@ -48,7 +43,7 @@ const FingerprintIcon = () => (
 
 export default function Login() {
   const [mode, setMode] = useState<"password" | "pin">("pin");
-  const [phone, setPhone] = useState(initialPhone);
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [pin, setPin] = useState("");
   const [setupToken, setSetupToken] = useState("");
@@ -217,10 +212,7 @@ export default function Login() {
 
           {mode === "password" && (
             <form onSubmit={submitPassword} className="flex flex-col gap-3">
-              <div className="relative">
-                <span className={`pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 ${secondaryTextClass}`}><PhoneIcon /></span>
-                <input type="tel" required placeholder="Teléfono (ej. +593991234567)" value={phone} onChange={(e) => setPhone(e.target.value)} className={inputClass} />
-              </div>
+              <PhoneInput required value={phone} onChange={setPhone} />
               <div className="relative">
                 <span className={`pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 ${secondaryTextClass}`}><LockIcon /></span>
                 <input type="password" required placeholder="Contraseña" value={password} onChange={(e) => setPassword(e.target.value)} className={inputClass} />
