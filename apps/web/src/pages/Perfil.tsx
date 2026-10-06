@@ -105,7 +105,7 @@ export default function Perfil() {
       <form onSubmit={submit} noValidate className="flex flex-col gap-5 rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900/60">
         <section className="flex flex-col gap-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Datos personales</p>
-          <Input label="Nombre" value={name} onChange={(e) => setName(e.target.value)} />
+          <Input label="Nombre" placeholder="Tu nombre y apellido" value={name} onChange={(e) => setName(e.target.value)} />
           <PhoneInput label="Teléfono (WhatsApp)" value={phone} onChange={setPhone} />
         </section>
 
@@ -124,7 +124,7 @@ export default function Perfil() {
           <Input
             type={inputType}
             preserveCase
-            label="Contraseña actual"
+            label="Contraseña actual" placeholder="Tu contraseña actual"
             autoComplete="current-password"
             value={currentPassword}
             onChange={(e) => setCurrentPassword(e.target.value)}
@@ -165,7 +165,7 @@ export default function Perfil() {
             <Input
               type={inputType}
               preserveCase
-              label="Repite la nueva contraseña"
+              label="Repite la nueva contraseña" placeholder="Escríbela de nuevo"
               autoComplete="new-password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}

@@ -478,7 +478,7 @@ export default function NewRouteRequest() {
           <label className="mb-1 flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400">
             <NoteIcon /> Notas (opcional)
           </label>
-          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} className={textareaClass} rows={2} />
+          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} className={textareaClass} rows={2} placeholder="Instrucciones o aclaraciones para la ruta (opcional)" />
         </div>
 
         {error && <p className="text-sm text-red-500 dark:text-red-400">{error}</p>}
