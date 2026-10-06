@@ -94,7 +94,7 @@ export default function Drivers() {
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [error, setError] = useState<string | null>(null);
-  const [lastCreated, setLastCreated] = useState<{ setupToken: string } | null>(null);
+  const [lastCreated, setLastCreated] = useState<{ temporaryPin: string } | null>(null);
 
   const { data: drivers, isLoading } = useQuery({ queryKey: ["drivers"], queryFn: () => api.get<Driver[]>("/drivers") });
   const { data: vehicles } = useQuery({ queryKey: ["vehicles"], queryFn: () => api.get<Vehicle[]>("/vehicles") });
@@ -118,7 +118,7 @@ export default function Drivers() {
 
   const create = useMutation({
     mutationFn: () =>
-      api.post<{ setupToken: string }>("/drivers", {
+      api.post<{ temporaryPin: string }>("/drivers", {
         name: form.name,
         phone: form.phone,
         vehicleId: form.vehicleId || undefined,
@@ -251,9 +251,9 @@ export default function Drivers() {
             <div className="flex flex-col items-center gap-4 text-center">
               <span className="text-emerald-500"><CheckCircleIcon /></span>
               <p className="text-sm text-slate-600 dark:text-slate-400">
-                Pídele al conductor que pegue este código en la app, en "¿Es otro dispositivo? Configurar acceso". Vence en 24 horas.
+                Entrégale este PIN temporal al conductor en persona. Deberá cambiarlo al ingresar.
               </p>
-              <CopyBox caption="Código de invitación" value={lastCreated.setupToken} />
+              <CopyBox caption="PIN temporal" value={lastCreated.temporaryPin} />
               <Button onClick={() => setModalOpen(false)} className="mt-1 flex items-center gap-1.5">
                 <CheckIcon /> Cerrar
               </Button>

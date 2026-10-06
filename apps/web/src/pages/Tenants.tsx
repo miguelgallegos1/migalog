@@ -5,7 +5,6 @@ import { defaultDialCode } from "../lib/phone";
 import { digitsOnly } from "../lib/number";
 import { PhoneInput } from "../components/PhoneInput";
 import { CopyBox } from "../components/CopyBox";
-import { setupLink } from "../lib/setupLink";
 import { Button } from "../components/Button";
 import { Input } from "../components/Input";
 import { Modal } from "../components/Modal";
@@ -46,7 +45,7 @@ export default function Tenants() {
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [error, setError] = useState<string | null>(null);
-  const [lastSetupToken, setLastSetupToken] = useState<string | null>(null);
+  const [lastPin, setLastPin] = useState<string | null>(null);
 
   const { data: tenants, isLoading } = useQuery({ queryKey: ["tenants"], queryFn: () => api.get<Tenant[]>("/tenants") });
 
@@ -66,7 +65,7 @@ export default function Tenants() {
     setForm(EMPTY_FORM);
     setFieldErrors({});
     setError(null);
-    setLastSetupToken(null);
+    setLastPin(null);
     setModalOpen(true);
   }
 
@@ -75,18 +74,17 @@ export default function Tenants() {
   }
 
   const create = useMutation({
-    // El backend crea el tenant Y su primer admin_empresa en un solo paso, devolviendo el
-    // setupToken de una sola vez - acá lo mostramos para poder probar sin tener email real
-    // conectado (en producción se lo mandaría al admin por correo, no se vería en pantalla).
+    // El backend crea el tenant Y su primer admin_empresa en un solo paso, devolviendo el PIN
+    // temporal una sola vez: se entrega en persona al administrador, que lo cambia al ingresar.
     mutationFn: () =>
-      api.post<{ setupToken: string }>("/tenants", {
+      api.post<{ temporaryPin: string }>("/tenants", {
         ruc: form.ruc,
         name: form.name,
         adminName: `${form.adminFirstName.trim()} ${form.adminLastName.trim()}`,
         adminPhone: form.adminPhone,
       }),
     onSuccess: (res) => {
-      setLastSetupToken(res.setupToken);
+      setLastPin(res.temporaryPin);
       setError(null);
       queryClient.invalidateQueries({ queryKey: ["tenants"] });
     },
@@ -212,14 +210,14 @@ export default function Tenants() {
       </div>
 
       {modalOpen && (
-        <Modal title={lastSetupToken ? "Empresa creada" : "Crear empresa proveedora"} onClose={closeModal}>
-          {lastSetupToken ? (
+        <Modal title={lastPin ? "Empresa creada" : "Crear empresa proveedora"} onClose={closeModal}>
+          {lastPin ? (
             <div className="flex flex-col items-center gap-4 text-center">
               <span className="text-emerald-500"><CheckCircleIcon /></span>
               <p className="text-sm text-slate-600 dark:text-slate-400">
-                Envía este link al administrador para que cree su contraseña. Vence en 24 horas.
+                Entrega este PIN temporal al administrador en persona. Deberá cambiarlo al ingresar.
               </p>
-              <CopyBox caption="Link de invitación" value={setupLink(lastSetupToken)} />
+              <CopyBox caption="PIN temporal" value={lastPin} />
               <Button onClick={closeModal} className="mt-1 flex items-center gap-1.5">
                 <CheckIcon /> Cerrar
               </Button>

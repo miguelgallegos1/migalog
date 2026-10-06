@@ -78,17 +78,29 @@ export const clients = pgTable("clients", {
  * tenantId y clientId null. Los roles cliente_* tienen ambos: tenantId (a través de su
  * empresa cliente) y clientId (qué empresa cliente específica).
  */
+/** Intentos fallidos de login por IP: frena la fuerza bruta de un PIN de 6 dígitos (no hay usuario al que bloquear). */
+export const loginAttempts = pgTable("login_attempts", {
+  ip: text("ip").primaryKey(),
+  count: integer("count").notNull().default(0),
+  windowStart: timestamp("window_start", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
   tenantId: uuid("tenant_id").references(() => tenants.id),
   clientId: uuid("client_id").references(() => clients.id),
   role: roleEnum("role").notNull(),
   name: text("name").notNull(),
-  // Identificador único para login (password o PIN): no hay email en ningún lado de la app,
-  // todo el contacto/alta es por WhatsApp.
-  phone: text("phone").notNull().unique(),
+  // Solo dato de contacto (WhatsApp): NO identifica a nadie ni se usa para entrar.
+  phone: text("phone").notNull(),
   passwordHash: text("password_hash"),
+  // El PIN se guarda con sal (scrypt) para verificarlo, y además con una huella HMAC única
+  // (pin_lookup) para encontrar al usuario por PIN sin depender de la sal. La restricción única
+  // garantiza que ningún PIN se repita entre usuarios.
   pinHash: text("pin_hash"),
+  pinLookup: text("pin_lookup").unique(),
+  // PIN temporal generado por el sistema (alta o reseteo): obliga a cambiarlo al próximo ingreso.
+  mustChangePin: boolean("must_change_pin").notNull().default(false),
   active: boolean("active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

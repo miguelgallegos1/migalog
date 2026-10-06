@@ -88,9 +88,8 @@ export function UserMenu() {
   }
 
   /**
-   * "Activar biometría": si este navegador todavía no tiene un dispositivo guardado (caso de
-   * los roles con contraseña, que nunca pasan por /setup-pin), primero se registra uno nuevo
-   * vía /device/register - a partir de ahí el flujo es el mismo que ya usan los roles PIN.
+   * "Activar biometría": si este navegador todavía no tiene un dispositivo guardado, primero se
+   * registra uno nuevo vía /device/register; después se habilita la biometría sobre ese dispositivo.
    */
   async function handleEnableBiometric() {
     if (!user) return;

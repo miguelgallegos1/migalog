@@ -1,16 +1,46 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import { usesPassword, usesPin, isClientRole, inviteUserSchema, loginPasswordSchema, loginPinSchema, phoneSchema } from "@migalog/shared";
+import { isClientRole, inviteUserSchema, phoneSchema } from "@migalog/shared";
 import { db } from "../db/client.js";
-import { users, devices, clients, tenants } from "../db/schema.js";
+import { users, devices, clients, tenants, loginAttempts } from "../db/schema.js";
 import { eq, and } from "drizzle-orm";
 import { hashSecret, verifySecret, randomToken } from "../lib/crypto.js";
 import { firstOrThrow } from "../lib/db-helpers.js";
-import { signAccessToken, signSetupToken, verifySetupToken, credentialFingerprint } from "../lib/jwt.js";
+import { findUserByPin, isPinTaken, issueTemporaryPin, setUserPin } from "../lib/pin.js";
+import { signAccessToken } from "../lib/jwt.js";
 import { requireAuth, requireRole, type AppVariables } from "../middleware/auth.js";
 
-const FAILED_ATTEMPTS_LIMIT = 5;
-const LOCK_MINUTES = 15;
+/** Intentos de PIN fallidos permitidos por IP en la ventana. Con un PIN de 6 dígitos esto es lo que impide la fuerza bruta. */
+const LOGIN_ATTEMPTS_LIMIT = 10;
+const LOGIN_WINDOW_MINUTES = 15;
+
+const pinSchema = z.string().regex(/^\d{6}$/, "El PIN tiene 6 dígitos");
+
+/** IP de quien hace el pedido (Vercel la pasa en x-forwarded-for). */
+function clientIp(c: { req: { header: (name: string) => string | undefined } }): string {
+  return c.req.header("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+}
+
+/** Cuántos intentos fallidos lleva esta IP dentro de la ventana vigente. */
+async function attemptsInWindow(ip: string): Promise<number> {
+  const [row] = await db.select().from(loginAttempts).where(eq(loginAttempts.ip, ip));
+  if (!row) return 0;
+  const windowEnd = row.windowStart.getTime() + LOGIN_WINDOW_MINUTES * 60_000;
+  return Date.now() < windowEnd ? row.count : 0;
+}
+
+async function recordFailedAttempt(ip: string): Promise<void> {
+  const [row] = await db.select().from(loginAttempts).where(eq(loginAttempts.ip, ip));
+  const windowEnd = row ? row.windowStart.getTime() + LOGIN_WINDOW_MINUTES * 60_000 : 0;
+  if (!row || Date.now() >= windowEnd) {
+    const fresh = { ip, count: 1, windowStart: new Date() };
+    if (row) await db.update(loginAttempts).set(fresh as any).where(eq(loginAttempts.ip, ip));
+    else await db.insert(loginAttempts).values(fresh as any);
+    return;
+  }
+  const bumped = { count: row.count + 1 };
+  await db.update(loginAttempts).set(bumped as any).where(eq(loginAttempts.ip, ip));
+}
 
 /**
  * `users.active` no alcanza: desactivar la empresa proveedora (tenant) o la empresa cliente
@@ -33,9 +63,10 @@ async function isAccountUsable(user: { tenantId: string | null; clientId: string
 /**
  * Arma el objeto "user" que se devuelve al loguearse/refrescar - incluye el nombre de la
  * empresa (proveedora o cliente, según a cuál pertenezca) para que el front lo muestre en el
- * menú de sesión sin tener que pedirlo aparte con un endpoint distinto.
+ * menú de sesión sin tener que pedirlo aparte con un endpoint distinto. `mustChangePin` le dice
+ * al front que tiene que cambiar el PIN temporal antes de usar la app.
  */
-async function buildSessionUser(user: { id: string; name: string; role: (typeof users.$inferSelect)["role"]; tenantId: string | null; clientId: string | null }) {
+async function buildSessionUser(user: { id: string; name: string; role: (typeof users.$inferSelect)["role"]; tenantId: string | null; clientId: string | null; mustChangePin: boolean }) {
   const [tenant, client] = await Promise.all([
     user.tenantId ? db.select({ name: tenants.name }).from(tenants).where(eq(tenants.id, user.tenantId)) : Promise.resolve([]),
     user.clientId ? db.select({ name: clients.name }).from(clients).where(eq(clients.id, user.clientId)) : Promise.resolve([]),
@@ -48,6 +79,7 @@ async function buildSessionUser(user: { id: string; name: string; role: (typeof 
     clientId: user.clientId,
     tenantName: tenant[0]?.name ?? null,
     clientName: client[0]?.name ?? null,
+    mustChangePin: user.mustChangePin,
   };
 }
 
@@ -68,6 +100,8 @@ export const authRoutes = new Hono<{ Variables: AppVariables }>();
  *   cuando el rol es cliente_*.
  * - conductor/cliente_conductor NUNCA se crean acá (ver POST /drivers): necesitan camión
  *   asignado y vigencia de licencia, que esta alta genérica no pide.
+ * La respuesta trae el PIN temporal una sola vez: se entrega en persona y la persona lo cambia
+ * en su primer ingreso.
  */
 authRoutes.post(
   "/invite",
@@ -125,113 +159,37 @@ authRoutes.post(
       await db.insert(users).values(newUserValues as any).returning()
     );
 
-    const setupToken = await signSetupToken(user);
-    // En producción esto se envía por WhatsApp, no se devuelve en la respuesta.
-    return c.json({ user, setupToken, setupMethod: usesPassword(body.role) ? "password" : "pin" });
+    const temporaryPin = await issueTemporaryPin(user.id);
+    return c.json({ user, temporaryPin });
   }
 );
 
+const loginSchema = z.object({ pin: pinSchema });
+
 /**
- * Devuelve el usuario del link de setup, o null si el link no sirve: vencido, alterado, o ya
- * usado (el credencial cambió desde que se firmó, ver credentialFingerprint en jwt.ts).
+ * Ingreso único para todos los roles: solo el PIN de 6 dígitos (es único en toda la base, así
+ * que identifica a una sola persona). Como un PIN de 6 dígitos se puede adivinar probando, los
+ * intentos fallidos se cuentan por IP y, tras 10 en 15 minutos, se bloquea esa IP.
  */
-async function userFromSetupToken(setupToken: string) {
-  let claims: { userId: string; cred: string };
-  try {
-    claims = await verifySetupToken(setupToken);
-  } catch {
-    return null;
-  }
-  const [user] = await db.select().from(users).where(eq(users.id, claims.userId));
-  if (!user || credentialFingerprint(user) !== claims.cred) return null;
-  return user;
-}
-
-const LINK_INVALID = "El link no es válido, ya se usó o venció. Pide uno nuevo a quien te invitó.";
-
-const setupPasswordSchema = z.object({
-  setupToken: z.string(),
-  password: z.string().min(8).regex(/[A-ZÁÉÍÓÚÑ]/).regex(/[a-záéíóúñ]/).regex(/\d/),
-});
-authRoutes.post("/setup-password", async (c) => {
-  const { setupToken, password } = setupPasswordSchema.parse(await c.req.json());
-  const user = await userFromSetupToken(setupToken);
-  if (!user) return c.json({ error: LINK_INVALID }, 400);
-  if (!usesPassword(user.role)) return c.json({ error: "Solicitud inválida" }, 400);
-
-  const passwordHash = await hashSecret(password);
-  // Variable, no literal directo en .set() (ver seed.ts para el detalle de por qué no se anota con typeof users.$inferInsert).
-  const passwordValues = { passwordHash };
-  await db.update(users).set(passwordValues as any).where(eq(users.id, user.id));
-  return c.json({ ok: true });
-});
-
-const setupPinSchema = z.object({
-  setupToken: z.string(),
-  pin: z.string().length(6).regex(/^\d{6}$/),
-  deviceLabel: z.string().optional(),
-});
-authRoutes.post("/setup-pin", async (c) => {
-  const { setupToken, pin, deviceLabel } = setupPinSchema.parse(await c.req.json());
-  const user = await userFromSetupToken(setupToken);
-  if (!user) return c.json({ error: LINK_INVALID }, 400);
-  if (!usesPin(user.role)) return c.json({ error: "Solicitud inválida" }, 400);
-  const userId = user.id;
-
-  const pinHash = await hashSecret(pin);
-  const pinValues = { pinHash };
-  await db.update(users).set(pinValues as any).where(eq(users.id, userId));
-
-  const deviceRefreshToken = randomToken();
-  const sessionCredentialHash = await hashSecret(deviceRefreshToken);
-  const deviceValues = { userId, label: deviceLabel, sessionCredentialHash };
-  const device = firstOrThrow(await db.insert(devices).values(deviceValues as any).returning());
-
-  // deviceRefreshToken se devuelve una sola vez: el cliente lo guarda cifrado en el dispositivo
-  // y lo usa junto con PIN/biometría para refrescar la sesión sin volver a escribir el PIN cada vez.
-  return c.json({ deviceId: device.id, deviceRefreshToken });
-});
-
-authRoutes.post("/login-password", async (c) => {
-  const { phone, password } = loginPasswordSchema.parse(await c.req.json());
-  const [user] = await db.select().from(users).where(eq(users.phone, phone));
-  if (!user || !user.passwordHash || !user.active) {
-    return c.json({ error: "Credenciales inválidas" }, 401);
-  }
-  const valid = await verifySecret(user.passwordHash, password);
-  if (!valid) return c.json({ error: "Credenciales inválidas" }, 401);
-  if (!(await isAccountUsable(user))) return c.json({ error: "Empresa desactivada" }, 401);
-
-  const accessToken = await signAccessToken({ sub: user.id, tenantId: user.tenantId, clientId: user.clientId, role: user.role });
-  return c.json({ accessToken, user: await buildSessionUser(user) });
-});
-
-authRoutes.post("/login-pin", async (c) => {
-  const { deviceId, pin } = loginPinSchema.parse(await c.req.json());
-  const [device] = await db.select().from(devices).where(eq(devices.id, deviceId));
-  if (!device) return c.json({ error: "Dispositivo no reconocido" }, 401);
-
-  if (device.lockedUntil && device.lockedUntil > new Date()) {
-    return c.json({ error: "Dispositivo bloqueado temporalmente por demasiados intentos" }, 423);
+authRoutes.post("/login", async (c) => {
+  const { pin } = loginSchema.parse(await c.req.json());
+  const ip = clientIp(c);
+  if ((await attemptsInWindow(ip)) >= LOGIN_ATTEMPTS_LIMIT) {
+    return c.json({ error: "Demasiados intentos. Espera 15 minutos e intenta de nuevo." }, 429);
   }
 
-  const [user] = await db.select().from(users).where(eq(users.id, device.userId));
-  if (!user || !user.pinHash || !user.active) return c.json({ error: "Credenciales inválidas" }, 401);
-
-  const valid = await verifySecret(user.pinHash, pin);
-  if (!valid) {
-    const attempts = device.failedAttempts + 1;
-    const lockedUntil =
-      attempts >= FAILED_ATTEMPTS_LIMIT ? new Date(Date.now() + LOCK_MINUTES * 60_000) : null;
-    const lockoutValues = { failedAttempts: attempts, lockedUntil };
-    await db.update(devices).set(lockoutValues as any).where(eq(devices.id, deviceId));
+  const user = await findUserByPin(pin);
+  if (!user || !user.pinHash || !user.active) {
+    await recordFailedAttempt(ip);
     return c.json({ error: "PIN incorrecto" }, 401);
   }
-
+  if (!(await verifySecret(user.pinHash, pin))) {
+    await recordFailedAttempt(ip);
+    return c.json({ error: "PIN incorrecto" }, 401);
+  }
   if (!(await isAccountUsable(user))) return c.json({ error: "Empresa desactivada" }, 401);
 
-  const resetAttemptsValues = { failedAttempts: 0, lockedUntil: null };
-  await db.update(devices).set(resetAttemptsValues as any).where(eq(devices.id, deviceId));
+  await db.delete(loginAttempts).where(eq(loginAttempts.ip, ip));
   const accessToken = await signAccessToken({ sub: user.id, tenantId: user.tenantId, clientId: user.clientId, role: user.role });
   return c.json({ accessToken, user: await buildSessionUser(user) });
 });
@@ -263,10 +221,8 @@ authRoutes.post("/session/refresh", async (c) => {
 
 const registerDeviceSchema = z.object({ deviceLabel: z.string().optional() });
 /**
- * Equivalente a /setup-pin pero para roles con contraseña (admin_empresa, cliente_admin,
- * etc.): esos roles nunca pasan por /setup-pin, así que no tenían ninguna fila en `devices`
- * y por lo tanto no había nada contra qué habilitar biometría. Se usa una sola vez, desde
- * "Activar biometría" en el menú de sesión, cuando el navegador todavía no tiene un
+ * Registra este navegador/teléfono para ingresar con biometría. Se usa una sola vez, desde
+ * "Activar biometría" en el menú de sesión, cuando el dispositivo todavía no tiene un
  * deviceId guardado localmente.
  */
 authRoutes.post("/device/register", requireAuth, async (c) => {
@@ -312,38 +268,38 @@ authRoutes.get("/me", requireAuth, async (c) => {
 const updateMeSchema = z.object({
   name: z.string().min(1).optional(),
   phone: phoneSchema.optional(),
-  currentPassword: z.string().optional(),
-  newPassword: z
-    .string()
-    .min(8, "La nueva contraseña debe tener al menos 8 caracteres")
-    .regex(/[A-ZÁÉÍÓÚÑ]/, "La nueva contraseña necesita una mayúscula")
-    .regex(/[a-záéíóúñ]/, "La nueva contraseña necesita una minúscula")
-    .regex(/\d/, "La nueva contraseña necesita un número")
-    .optional(),
 });
 
+/** Datos de contacto propios. El teléfono es solo información de contacto, no identifica a nadie. */
 authRoutes.patch("/me", requireAuth, async (c) => {
   const body = updateMeSchema.parse(await c.req.json());
+  const userId = c.get("userId") as string;
+  const values: Record<string, string> = {};
+  if (body.name) values.name = body.name;
+  if (body.phone) values.phone = body.phone;
+  if (Object.keys(values).length > 0) {
+    await db.update(users).set(values as any).where(eq(users.id, userId));
+  }
+  return c.json({ ok: true });
+});
+
+const changePinSchema = z.object({ currentPin: pinSchema, newPin: pinSchema });
+
+/**
+ * Cambio de PIN propio (también es el primer paso obligatorio tras un PIN temporal). Pide el PIN
+ * actual, rechaza repetirlo y rechaza uno que ya use otra persona: el PIN es único en toda la base.
+ */
+authRoutes.patch("/me/pin", requireAuth, async (c) => {
+  const { currentPin, newPin } = changePinSchema.parse(await c.req.json());
   const userId = c.get("userId") as string;
   const [user] = await db.select().from(users).where(eq(users.id, userId));
   if (!user) return c.json({ error: "Usuario no encontrado" }, 404);
 
-  const values: Record<string, string> = {};
-  if (body.name) values.name = body.name;
-  if (body.phone && body.phone !== user.phone) {
-    const [taken] = await db.select({ id: users.id }).from(users).where(eq(users.phone, body.phone));
-    if (taken) return c.json({ error: "Ese teléfono ya está registrado en otra cuenta" }, 409);
-    values.phone = body.phone;
-  }
-  if (body.newPassword) {
-    const current = body.currentPassword ?? "";
-    const ok = user.passwordHash ? await verifySecret(user.passwordHash, current) : false;
-    if (!ok) return c.json({ error: "La contraseña actual no es correcta" }, 400);
-    if (body.newPassword === current) return c.json({ error: "La nueva contraseña debe ser distinta de la actual" }, 400);
-    values.passwordHash = await hashSecret(body.newPassword);
-  }
-  if (Object.keys(values).length > 0) {
-    await db.update(users).set(values as any).where(eq(users.id, userId));
-  }
+  const ok = user.pinHash ? await verifySecret(user.pinHash, currentPin) : false;
+  if (!ok) return c.json({ error: "El PIN actual no es correcto" }, 400);
+  if (newPin === currentPin) return c.json({ error: "El nuevo PIN debe ser distinto del actual" }, 400);
+  if (await isPinTaken(newPin, userId)) return c.json({ error: "Ese PIN ya lo usa otra persona, elige otro" }, 409);
+
+  await setUserPin(userId, newPin, false);
   return c.json({ ok: true });
 });

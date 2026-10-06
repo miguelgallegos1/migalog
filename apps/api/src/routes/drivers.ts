@@ -7,7 +7,7 @@ import { and, eq, inArray, isNull } from "drizzle-orm";
 import { requireAuth, requireTenant, requireRole, type AppVariables } from "../middleware/auth.js";
 import { param } from "../lib/http.js";
 import { firstOrThrow } from "../lib/db-helpers.js";
-import { signSetupToken } from "../lib/jwt.js";
+import { issueTemporaryPin } from "../lib/pin.js";
 
 /**
  * Conductores: de la empresa proveedora (rol "conductor", clientId null) o propios de una
@@ -117,8 +117,8 @@ driverRoutes.post("/", requireRole(...PROVIDER_MANAGE_ROLES, ...CLIENT_MANAGE_RO
   };
   const driver = firstOrThrow(await db.insert(drivers).values(newDriverValues as any).returning());
 
-  const setupToken = await signSetupToken(user);
-  return c.json({ user, driver, setupToken }, 201);
+  const temporaryPin = await issueTemporaryPin(user.id);
+  return c.json({ user, driver, temporaryPin }, 201);
 });
 
 const updateSchema = createSchema.omit({ name: true, phone: true }).partial();

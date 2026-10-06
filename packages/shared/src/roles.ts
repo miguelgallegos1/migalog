@@ -36,21 +36,14 @@ export const CLIENT_ROLES: Role[] = [
   "cliente_conductor",
 ];
 
-/** Roles que acceden con teléfono+password. El resto usa PIN de 6 dígitos + biometría opcional. */
-export const PASSWORD_ROLES: Role[] = [
-  "super_admin",
-  "admin_empresa",
-  "coordinador",
-  "cliente_admin",
-  "cliente_coordinador",
-  "cliente_jefe",
-  "cliente_visualizador",
-];
-export const PIN_ROLES: Role[] = ["conductor", "cliente_solicitante", "cliente_conductor"];
+/**
+ * Todos los roles entran con teléfono + PIN de 6 dígitos (biometría opcional en el dispositivo).
+ * El PIN inicial lo genera el sistema y la persona debe cambiarlo en su primer ingreso.
+ */
+export const PIN_ROLES: Role[] = [...ROLES];
 
-export function usesPassword(role: Role): boolean {
-  return PASSWORD_ROLES.includes(role);
-}
+/** Roles a los que un administrador puede resetear el PIN desde la app (super_admin no, ver users.ts). */
+export const RESETTABLE_ROLES: Role[] = ROLES.filter((r) => r !== "super_admin");
 
 export function usesPin(role: Role): boolean {
   return PIN_ROLES.includes(role);

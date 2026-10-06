@@ -3,10 +3,15 @@ import { tenants, clients, users, vehicles, drivers, routes, routeStops, routeSt
 import { hashSecret, randomToken } from "../lib/crypto.js";
 import { generateRouteCode } from "../lib/ids.js";
 import { firstOrThrow } from "../lib/db-helpers.js";
-import { signSetupToken } from "../lib/jwt.js";
+import { pinLookupOf } from "../lib/pin.js";
 import type { Role } from "@migalog/shared";
 
 async function main() {
+  // PIN de cada usuario demo (sirve solo para imprimirlos al final; los valores reales van en cada fila).
+  const PIN_BY_PHONE: Record<string, string> = {
+    "+50588880099": "100001", "+50588880000": "100002", "+50588880004": "100003", "+50588880001": "100004",
+    "+50588880010": "100005", "+50588880011": "100006", "+50588880012": "100007", "+50588880013": "100008", "+50588880002": "100009",
+  };
   console.log("Sembrando datos demo...");
 
   const tenant = firstOrThrow(
@@ -29,18 +34,19 @@ async function main() {
     role: "super_admin" as const,
     name: "Dueño MigaLog",
     phone: "+50588880099",
-    passwordHash: await hashSecret("Demo1234!"),
+    pinHash: await hashSecret("100001"),
+    pinLookup: pinLookupOf("100001"),
   };
   const superAdmin = firstOrThrow(await db.insert(users).values(superAdminValues as any).returning());
 
   // --- Nivel 1: empresa proveedora (el tenant) ---
-  const adminEmpresaValues = { tenantId: tenant.id, role: "admin_empresa" as const, name: "Admin Demo", phone: "+50588880000", passwordHash: await hashSecret("Demo1234!") };
+  const adminEmpresaValues = { tenantId: tenant.id, role: "admin_empresa" as const, name: "Admin Demo", phone: "+50588880000", pinHash: await hashSecret("100002"), pinLookup: pinLookupOf("100002") };
   const adminEmpresa = firstOrThrow(await db.insert(users).values(adminEmpresaValues as any).returning());
 
-  const coordinadorValues = { tenantId: tenant.id, role: "coordinador" as const, name: "Coordinador Demo", phone: "+50588880004", passwordHash: await hashSecret("Demo1234!") };
+  const coordinadorValues = { tenantId: tenant.id, role: "coordinador" as const, name: "Coordinador Demo", phone: "+50588880004", pinHash: await hashSecret("100003"), pinLookup: pinLookupOf("100003") };
   const coordinador = firstOrThrow(await db.insert(users).values(coordinadorValues as any).returning());
 
-  const conductorUserValues = { tenantId: tenant.id, role: "conductor" as const, name: "Conductor Demo", phone: "+50588880001", pinHash: await hashSecret("123456") };
+  const conductorUserValues = { tenantId: tenant.id, role: "conductor" as const, name: "Conductor Demo", phone: "+50588880001", pinHash: await hashSecret("100004"), pinLookup: pinLookupOf("100004") };
   const conductorUser = firstOrThrow(await db.insert(users).values(conductorUserValues as any).returning());
 
   // --- Nivel 2: empresa cliente (varios usuarios, cada uno con su propio rol) ---
@@ -48,19 +54,19 @@ async function main() {
     await db.insert(clients).values({ tenantId: tenant.id, ruc: "0801199905678", name: "Comercial El Sol" }).returning()
   );
 
-  const clienteAdminValues = { tenantId: tenant.id, clientId: client.id, role: "cliente_admin" as const, name: "Admin Cliente Demo", phone: "+50588880010", passwordHash: await hashSecret("Demo1234!") };
+  const clienteAdminValues = { tenantId: tenant.id, clientId: client.id, role: "cliente_admin" as const, name: "Admin Cliente Demo", phone: "+50588880010", pinHash: await hashSecret("100005"), pinLookup: pinLookupOf("100005") };
   const clienteAdmin = firstOrThrow(await db.insert(users).values(clienteAdminValues as any).returning());
 
-  const clienteCoordinadorValues = { tenantId: tenant.id, clientId: client.id, role: "cliente_coordinador" as const, name: "Coordinador Cliente Demo", phone: "+50588880011", passwordHash: await hashSecret("Demo1234!") };
+  const clienteCoordinadorValues = { tenantId: tenant.id, clientId: client.id, role: "cliente_coordinador" as const, name: "Coordinador Cliente Demo", phone: "+50588880011", pinHash: await hashSecret("100006"), pinLookup: pinLookupOf("100006") };
   const clienteCoordinador = firstOrThrow(await db.insert(users).values(clienteCoordinadorValues as any).returning());
 
-  const clienteJefeValues = { tenantId: tenant.id, clientId: client.id, role: "cliente_jefe" as const, name: "Jefe Cliente Demo", phone: "+50588880012", passwordHash: await hashSecret("Demo1234!") };
+  const clienteJefeValues = { tenantId: tenant.id, clientId: client.id, role: "cliente_jefe" as const, name: "Jefe Cliente Demo", phone: "+50588880012", pinHash: await hashSecret("100007"), pinLookup: pinLookupOf("100007") };
   const clienteJefe = firstOrThrow(await db.insert(users).values(clienteJefeValues as any).returning());
 
-  const clienteVisualizadorValues = { tenantId: tenant.id, clientId: client.id, role: "cliente_visualizador" as const, name: "Visualizador Cliente Demo", phone: "+50588880013", passwordHash: await hashSecret("Demo1234!") };
+  const clienteVisualizadorValues = { tenantId: tenant.id, clientId: client.id, role: "cliente_visualizador" as const, name: "Visualizador Cliente Demo", phone: "+50588880013", pinHash: await hashSecret("100008"), pinLookup: pinLookupOf("100008") };
   const clienteVisualizador = firstOrThrow(await db.insert(users).values(clienteVisualizadorValues as any).returning());
 
-  const solicitanteUserValues = { tenantId: tenant.id, clientId: client.id, role: "cliente_solicitante" as const, name: "Solicitante Demo", phone: "+50588880002", pinHash: await hashSecret("654321") };
+  const solicitanteUserValues = { tenantId: tenant.id, clientId: client.id, role: "cliente_solicitante" as const, name: "Solicitante Demo", phone: "+50588880002", pinHash: await hashSecret("100009"), pinLookup: pinLookupOf("100009") };
   const solicitanteUser = firstOrThrow(await db.insert(users).values(solicitanteUserValues as any).returning());
 
   const vehicleValues = { tenantId: tenant.id, plate: "M-123456", brandModel: "Hino 300", capacityM3: 25 };
@@ -89,40 +95,11 @@ async function main() {
   };
   await db.insert(routeStatusHistory).values(routeHistoryValues as any);
 
-  const conductorDeviceToken = randomToken();
-  const conductorDeviceValues = { userId: conductorUser.id, label: "Teléfono demo conductor", sessionCredentialHash: await hashSecret(conductorDeviceToken) };
-  const conductorDevice = firstOrThrow(await db.insert(devices).values(conductorDeviceValues as any).returning());
-
-  const solicitanteDeviceToken = randomToken();
-  const solicitanteDeviceValues = { userId: solicitanteUser.id, label: "Teléfono demo solicitante", sessionCredentialHash: await hashSecret(solicitanteDeviceToken) };
-  const solicitanteDevice = firstOrThrow(await db.insert(devices).values(solicitanteDeviceValues as any).returning());
-
-  // Además del device+PIN ya creado (útil para probar la API directo con curl), generamos
-  // un código de invitación real para cada uno: así se puede probar el flujo completo desde
-  // el navegador (pantalla "primera vez en este dispositivo" -> pegar código -> elegir PIN),
-  // que es como un usuario real terminaría configurando su celular.
-  const conductorSetupToken = await signSetupToken(conductorUser);
-  const solicitanteSetupToken = await signSetupToken(solicitanteUser);
-
-  const passwordUsers: { role: Role; phone: string | null }[] = [
-    { role: superAdmin.role, phone: superAdmin.phone },
-    { role: adminEmpresa.role, phone: adminEmpresa.phone },
-    { role: coordinador.role, phone: coordinador.phone },
-    { role: clienteAdmin.role, phone: clienteAdmin.phone },
-    { role: clienteCoordinador.role, phone: clienteCoordinador.phone },
-    { role: clienteJefe.role, phone: clienteJefe.phone },
-    { role: clienteVisualizador.role, phone: clienteVisualizador.phone },
-  ];
-
-  console.log("\nListo. Credenciales de prueba (todas las de password: Demo1234!):\n");
+  console.log("\nListo. Usuarios demo (entran solo con el PIN):\n");
   console.log(`Tenant: ${tenant.name} (slug: ${tenant.slug}) | Empresa cliente: ${client.name}\n`);
-  for (const u of passwordUsers) {
-    console.log(`${u.role.padEnd(22)} -> teléfono: ${u.phone}`);
+  for (const u of [superAdmin, adminEmpresa, coordinador, conductorUser, clienteAdmin, clienteCoordinador, clienteJefe, clienteVisualizador, solicitanteUser]) {
+    console.log(`${u.role.padEnd(22)} -> PIN: ${PIN_BY_PHONE[u.phone] ?? "?"}`);
   }
-  console.log(`\nconductor (API directo)          -> POST /auth/login-pin { deviceId: "${conductorDevice.id}", pin: "123456" }`);
-  console.log(`cliente_solicitante (API directo) -> POST /auth/login-pin { deviceId: "${solicitanteDevice.id}", pin: "654321" }`);
-  console.log(`\nconductor (navegador)            -> pestaña PIN -> "Configurar acceso" -> código: ${conductorSetupToken}`);
-  console.log(`cliente_solicitante (navegador)  -> pestaña PIN -> "Configurar acceso" -> código: ${solicitanteSetupToken}`);
   console.log(`\nRuta demo: ${route.code} (estado CREADO, 4 paradas)`);
 }
 

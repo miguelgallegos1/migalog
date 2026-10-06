@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import { ROLES, isClientRole, phoneSchema } from "@migalog/shared";
+import { ROLES, RESETTABLE_ROLES, isClientRole, phoneSchema } from "@migalog/shared";
+import { issueTemporaryPin } from "../lib/pin.js";
 import { db } from "../db/client.js";
 import { users } from "../db/schema.js";
 import { and, eq } from "drizzle-orm";
@@ -10,6 +11,21 @@ import { isForeignKeyViolation } from "../lib/db-helpers.js";
 
 export const userRoutes = new Hono<{ Variables: AppVariables }>();
 userRoutes.use("*", requireAuth, requireTenant());
+
+/**
+ * Reseteo de PIN por un administrador de su alcance (mismo criterio que editar, ver
+ * authorizeTarget). Genera un PIN temporal nuevo, lo devuelve UNA vez para entregarlo en persona
+ * y obliga a la persona a cambiarlo en su próximo ingreso. super_admin nunca es objetivo.
+ */
+userRoutes.post("/:id/reset-pin", requireRole("admin_empresa", "cliente_admin"), async (c) => {
+  const id = param(c, "id");
+  const target = await authorizeTarget(c, id);
+  if (!target) return c.json({ error: "Usuario no encontrado" }, 404);
+  if (!RESETTABLE_ROLES.includes(target.role)) return c.json({ error: "Ese usuario no se puede resetear desde acá" }, 403);
+
+  const temporaryPin = await issueTemporaryPin(target.id);
+  return c.json({ temporaryPin });
+});
 
 /**
  * admin_empresa/coordinador/super_admin ven todos los usuarios del tenant (nivel 1 y

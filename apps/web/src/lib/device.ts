@@ -3,8 +3,8 @@ const DEVICE_TOKEN_KEY = "migalog_device_refresh_token";
 const BIOMETRIC_CREDENTIAL_KEY = "migalog_biometric_credential_id";
 
 /**
- * El deviceId/token viven en este dispositivo, no los escribe la persona: se guardan solos
- * al configurar el PIN (/auth/setup-pin) y de ahí en más el login por PIN los usa en silencio.
+ * El deviceId/token viven en este dispositivo, no los escribe la persona: se guardan solos al
+ * activar la biometría (/auth/device/register) y se usan para reingresar sin PIN.
  */
 export function getStoredDeviceId(): string | null {
   try {

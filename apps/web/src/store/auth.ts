@@ -12,6 +12,8 @@ export type SessionUser = {
   // mostrarlo en el menú de sesión sin pedirlo aparte.
   tenantName: string | null;
   clientName: string | null;
+  // PIN temporal (alta o reseteo): la app lo obliga a cambiarlo antes de seguir (ver ProtectedRoute).
+  mustChangePin: boolean;
 };
 
 type AuthState = {

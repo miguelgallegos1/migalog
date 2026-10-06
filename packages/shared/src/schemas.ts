@@ -142,15 +142,5 @@ export const inviteUserSchema = z.object({
 });
 export type InviteUserInput = z.infer<typeof inviteUserSchema>;
 
-export const loginPasswordSchema = z.object({
-  phone: phoneSchema,
-  password: z.string().min(8),
-});
-
-export const loginPinSchema = z.object({
-  deviceId: z.string().min(1),
-  pin: z.string().length(6).regex(/^\d{6}$/),
-});
-
 // RUC ecuatoriano: exactamente 13 dígitos.
 export const rucSchema = z.string().regex(/^\d{13}$/, "El RUC debe tener 13 dígitos");

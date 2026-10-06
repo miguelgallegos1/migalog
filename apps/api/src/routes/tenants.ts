@@ -4,7 +4,7 @@ import { phoneSchema, rucSchema } from "@migalog/shared";
 import { db } from "../db/client.js";
 import { devices, tenants, users } from "../db/schema.js";
 import { asc, eq, inArray } from "drizzle-orm";
-import { signSetupToken } from "../lib/jwt.js";
+import { issueTemporaryPin } from "../lib/pin.js";
 import { firstOrThrow, isForeignKeyViolation } from "../lib/db-helpers.js";
 import { requireAuth, requireRole, type AppVariables } from "../middleware/auth.js";
 
@@ -76,8 +76,8 @@ tenantRoutes.post("/", async (c) => {
     await db.insert(users).values(adminValues as any).returning()
   );
 
-  const setupToken = await signSetupToken(admin);
-  return c.json({ tenant, admin, setupToken });
+  const temporaryPin = await issueTemporaryPin(admin.id);
+  return c.json({ tenant, admin, temporaryPin });
 });
 
 tenantRoutes.patch("/:id/active", async (c) => {

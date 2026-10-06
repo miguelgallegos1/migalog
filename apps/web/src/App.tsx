@@ -21,7 +21,6 @@ const Users = lazy(() => import("./pages/Users"));
 const Tenants = lazy(() => import("./pages/Tenants"));
 const Sites = lazy(() => import("./pages/Sites"));
 const Perfil = lazy(() => import("./pages/Perfil"));
-const Configurar = lazy(() => import("./pages/Configurar"));
 // El panel carga Ably (tiempo real) y el mapa: se baja solo al entrar al panel, no en el login.
 const ControlCenter = lazy(() => import("./pages/ControlCenter"));
 
@@ -44,15 +43,6 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
-      {/* Público: el link de invitación llega a alguien que todavía no tiene sesión. */}
-      <Route
-        path="/configurar"
-        element={
-          <Suspense fallback={<RouteFallback />}>
-            <Configurar />
-          </Suspense>
-        }
-      />
 
       <Route element={<ProtectedRoute />}>
         <Route element={<Layout />}>

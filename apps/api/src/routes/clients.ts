@@ -4,7 +4,7 @@ import { phoneSchema, rucSchema } from "@migalog/shared";
 import { db } from "../db/client.js";
 import { clients, users } from "../db/schema.js";
 import { and, asc, eq } from "drizzle-orm";
-import { signSetupToken } from "../lib/jwt.js";
+import { issueTemporaryPin } from "../lib/pin.js";
 import { firstOrThrow, isForeignKeyViolation, isUniqueViolation } from "../lib/db-helpers.js";
 import { param } from "../lib/http.js";
 import { requireAuth, requireTenant, requireRole, type AppVariables } from "../middleware/auth.js";
@@ -78,8 +78,8 @@ clientRoutes.post("/", requireRole("admin_empresa", "super_admin"), async (c) =>
     const client = firstOrThrow(results[0] as (typeof clients.$inferSelect)[]);
     const admin = firstOrThrow(results[1] as (typeof users.$inferSelect)[]);
 
-    const setupToken = await signSetupToken(admin);
-    return c.json({ client, admin, setupToken }, 201);
+    const temporaryPin = await issueTemporaryPin(admin.id);
+    return c.json({ client, admin, temporaryPin }, 201);
   } catch (err) {
     if (isUniqueViolation(err)) return c.json({ error: duplicateMessage(err) }, 409);
     throw err;

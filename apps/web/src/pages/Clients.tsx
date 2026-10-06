@@ -5,7 +5,6 @@ import { defaultDialCode } from "../lib/phone";
 import { digitsOnly } from "../lib/number";
 import { PhoneInput } from "../components/PhoneInput";
 import { CopyBox } from "../components/CopyBox";
-import { setupLink } from "../lib/setupLink";
 import { Button } from "../components/Button";
 import { Input } from "../components/Input";
 import { Modal } from "../components/Modal";
@@ -51,7 +50,7 @@ export default function Clients() {
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [error, setError] = useState<string | null>(null);
-  const [lastSetupToken, setLastSetupToken] = useState<string | null>(null);
+  const [lastPin, setLastPin] = useState<string | null>(null);
 
   const { data: clients, isLoading } = useQuery({ queryKey: ["clients"], queryFn: () => api.get<ClientCompany[]>("/clients") });
 
@@ -70,7 +69,7 @@ export default function Clients() {
     setForm(EMPTY_FORM);
     setFieldErrors({});
     setError(null);
-    setLastSetupToken(null);
+    setLastPin(null);
     setModalOpen(true);
   }
 
@@ -80,14 +79,14 @@ export default function Clients() {
 
   const create = useMutation({
     mutationFn: () =>
-      api.post<{ setupToken: string }>("/clients", {
+      api.post<{ temporaryPin: string }>("/clients", {
         ruc: form.ruc,
         name: form.name,
         adminName: `${form.adminFirstName.trim()} ${form.adminLastName.trim()}`,
         adminPhone: form.adminPhone,
       }),
     onSuccess: (res) => {
-      setLastSetupToken(res.setupToken);
+      setLastPin(res.temporaryPin);
       setError(null);
       queryClient.invalidateQueries({ queryKey: ["clients"] });
     },
@@ -213,14 +212,14 @@ export default function Clients() {
       </div>
 
       {modalOpen && (
-        <Modal title={lastSetupToken ? "Empresa cliente creada" : "Crear empresa cliente"} onClose={closeModal}>
-          {lastSetupToken ? (
+        <Modal title={lastPin ? "Empresa cliente creada" : "Crear empresa cliente"} onClose={closeModal}>
+          {lastPin ? (
             <div className="flex flex-col items-center gap-4 text-center">
               <span className="text-emerald-500"><CheckCircleIcon /></span>
               <p className="text-sm text-slate-600 dark:text-slate-400">
-                Envía este link al administrador para que cree su contraseña. Vence en 24 horas.
+                Entrega este PIN temporal al administrador en persona. Deberá cambiarlo al ingresar.
               </p>
-              <CopyBox caption="Link de invitación" value={setupLink(lastSetupToken)} />
+              <CopyBox caption="PIN temporal" value={lastPin} />
               <Button onClick={closeModal} className="mt-1 flex items-center gap-1.5">
                 <CheckIcon /> Cerrar
               </Button>

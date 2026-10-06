@@ -4,7 +4,6 @@ import { api, ApiError } from "../lib/api";
 import { defaultDialCode } from "../lib/phone";
 import { PhoneInput } from "../components/PhoneInput";
 import { CopyBox } from "../components/CopyBox";
-import { setupLink } from "../lib/setupLink";
 import { Button } from "../components/Button";
 import { Input } from "../components/Input";
 import { Select } from "../components/Select";
@@ -73,8 +72,9 @@ export default function Users() {
   const [role, setRole] = useState<Role>(inviteOptions[0]!.value);
   const [phone, setPhone] = useState("");
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
-  const [lastInvite, setLastInvite] = useState<{ setupToken: string; setupMethod: string } | null>(null);
+  const [lastInvite, setLastInvite] = useState<{ temporaryPin: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [resetResult, setResetResult] = useState<{ name: string; pin?: string; error?: string } | null>(null);
 
   const { data: users, isLoading } = useQuery({ queryKey: ["users"], queryFn: () => api.get<UserRow[]>("/users") });
 
@@ -89,9 +89,16 @@ export default function Users() {
     setModalOpen(true);
   }
 
+  // Reseteo: genera un PIN temporal nuevo para la persona y lo muestra una sola vez.
+  const resetPin = useMutation({
+    mutationFn: (u: UserRow) => api.post<{ temporaryPin: string }>(`/users/${u.id}/reset-pin`),
+    onSuccess: (res, u) => setResetResult({ name: u.name, pin: res.temporaryPin }),
+    onError: (err, u) => setResetResult({ name: u.name, error: err instanceof ApiError ? err.message : "No se pudo restablecer el PIN" }),
+  });
+
   const invite = useMutation({
     mutationFn: () =>
-      api.post<{ setupToken: string; setupMethod: string }>("/auth/invite", {
+      api.post<{ temporaryPin: string }>("/auth/invite", {
         name: `${firstName.trim()} ${lastName.trim()}`,
         role,
         phone,
@@ -203,6 +210,7 @@ export default function Users() {
                     <RowActionsMenu
                       actions={[
                         { label: "Editar", onClick: () => openEdit(u) },
+                        { label: "Restablecer PIN", onClick: () => resetPin.mutate(u) },
                         { label: u.active ? "Desactivar" : "Activar", onClick: () => toggleActive.mutate({ id: u.id, active: !u.active }) },
                         { label: "Eliminar", danger: true, onClick: () => { setDeleteError(null); setDeleteTarget(u); } },
                       ]}
@@ -215,26 +223,36 @@ export default function Users() {
         )}
       </div>
 
+      {resetResult && (
+        <Modal title={resetResult.error ? "No se pudo restablecer" : "PIN restablecido"} onClose={() => setResetResult(null)}>
+          <div className="flex flex-col items-center gap-4 text-center">
+            {resetResult.error ? (
+              <p className="text-sm text-red-500 dark:text-red-400">{resetResult.error}</p>
+            ) : (
+              <>
+                <span className="text-emerald-500"><CheckCircleIcon /></span>
+                <p className="text-sm text-slate-600 dark:text-slate-400">
+                  Entrégale este PIN temporal a {resetResult.name} en persona. Deberá cambiarlo al ingresar.
+                </p>
+                <CopyBox caption="PIN temporal" value={resetResult.pin ?? ""} />
+              </>
+            )}
+            <Button onClick={() => setResetResult(null)} className="mt-1 flex items-center gap-1.5">
+              <CheckIcon /> Cerrar
+            </Button>
+          </div>
+        </Modal>
+      )}
+
       {modalOpen && (
         <Modal title={lastInvite ? "Invitación creada" : "Invitar usuario"} onClose={() => setModalOpen(false)}>
           {lastInvite ? (
             <div className="flex flex-col items-center gap-4 text-center">
               <span className="text-emerald-500"><CheckCircleIcon /></span>
-              {lastInvite.setupMethod === "password" ? (
-                <>
-                  <p className="text-sm text-slate-600 dark:text-slate-400">
-                    Envía este link a la persona para que cree su contraseña. Vence en 24 horas.
-                  </p>
-                  <CopyBox caption="Link de invitación" value={setupLink(lastInvite.setupToken)} />
-                </>
-              ) : (
-                <>
-                  <p className="text-sm text-slate-600 dark:text-slate-400">
-                    Pídele que pegue este código en la pantalla de inicio, en "¿Es otro dispositivo? Configurar acceso". Vence en 24 horas.
-                  </p>
-                  <CopyBox caption="Código de invitación" value={lastInvite.setupToken} />
-                </>
-              )}
+              <p className="text-sm text-slate-600 dark:text-slate-400">
+                Entrégale este PIN temporal a la persona en persona. Deberá cambiarlo al ingresar.
+              </p>
+              <CopyBox caption="PIN temporal" value={lastInvite.temporaryPin} />
               <Button onClick={() => setModalOpen(false)} className="mt-1 flex items-center gap-1.5">
                 <CheckIcon /> Cerrar
               </Button>

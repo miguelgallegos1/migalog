@@ -23,7 +23,7 @@ app.use(
 );
 
 // Nadie llama a esto desde la app (el front siempre pega a una ruta puntual como
-// /auth/login-password) - existe solo para que quien abra la URL pelada del backend en el
+// /auth/login) - existe solo para que quien abra la URL pelada del backend en el
 // navegador vea algo sensato en vez de un 404/500 crudo.
 app.get("/", (c) => c.json({ name: "MigaLog API", status: "ok" }));
 
