@@ -1,5 +1,6 @@
 import { lazy, Suspense } from "react";
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
+import { useAuthStore } from "./store/auth";
 import { Layout } from "./components/Layout";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import Login from "./pages/Login";
@@ -23,6 +24,17 @@ const Perfil = lazy(() => import("./pages/Perfil"));
 // El panel carga Ably (tiempo real) y el mapa: se baja solo al entrar al panel, no en el login.
 const ControlCenter = lazy(() => import("./pages/ControlCenter"));
 
+// El dueño de la plataforma no opera rutas: su pantalla de trabajo es Empresas proveedoras.
+function HomeRoute() {
+  const role = useAuthStore((s) => s.user?.role);
+  if (role === "super_admin") return <Navigate to="/empresas" replace />;
+  return (
+    <Suspense fallback={<RouteFallback />}>
+      <ControlCenter />
+    </Suspense>
+  );
+}
+
 function RouteFallback() {
   return <div className="flex min-h-[50vh] items-center justify-center text-sm text-slate-400 dark:text-slate-500">Cargando...</div>;
 }
@@ -34,7 +46,7 @@ export default function App() {
 
       <Route element={<ProtectedRoute />}>
         <Route element={<Layout />}>
-          <Route path="/" element={<Suspense fallback={<RouteFallback />}><ControlCenter /></Suspense>} />
+          <Route path="/" element={<HomeRoute />} />
           <Route
             path="/rutas/nueva"
             element={

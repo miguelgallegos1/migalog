@@ -306,7 +306,7 @@ authRoutes.patch("/me", requireAuth, async (c) => {
   const [user] = await db.select().from(users).where(eq(users.id, userId));
   if (!user) return c.json({ error: "Usuario no encontrado" }, 404);
 
-  const values: Partial<typeof users.$inferInsert> = {};
+  const values: Record<string, string> = {};
   if (body.name) values.name = body.name;
   if (body.phone && body.phone !== user.phone) {
     const [taken] = await db.select({ id: users.id }).from(users).where(eq(users.phone, body.phone));
