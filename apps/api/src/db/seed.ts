@@ -21,7 +21,7 @@ async function main() {
   // Cada insert de usuario se pasa como variable (no un objeto literal directo en .values()),
   // sin anotar su tipo con typeof users.$inferInsert: en el entorno de build de Vercel ese
   // tipo generado por Drizzle resulta incompleto (le faltan columnas nullable/con default
-  // como tenantId/clientId/passwordHash/pinHash), así que anotar explícitamente con él
+  // como tenantId/clientId/pinHash), así que anotar explícitamente con él
   // reproduce el mismo error "Object literal may only specify known properties" en la propia
   // declaración de la variable. Dejar que TS infiera el tipo del literal (sin anotación)
   // evita arrastrar ese tipo roto - al pasar la variable a .values()/.set() se chequea por

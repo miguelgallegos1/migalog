@@ -204,9 +204,6 @@ authRoutes.post("/session/refresh", async (c) => {
   const { deviceId, deviceRefreshToken } = refreshSchema.parse(await c.req.json());
   const [device] = await db.select().from(devices).where(eq(devices.id, deviceId));
   if (!device) return c.json({ error: "Dispositivo no reconocido" }, 401);
-  if (device.lockedUntil && device.lockedUntil > new Date()) {
-    return c.json({ error: "Dispositivo bloqueado temporalmente" }, 423);
-  }
 
   const valid = await verifySecret(device.sessionCredentialHash, deviceRefreshToken);
   if (!valid) return c.json({ error: "Credencial de dispositivo inválida" }, 401);

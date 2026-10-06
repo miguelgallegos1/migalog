@@ -93,7 +93,6 @@ export const users = pgTable("users", {
   name: text("name").notNull(),
   // Solo dato de contacto (WhatsApp): NO identifica a nadie ni se usa para entrar.
   phone: text("phone").notNull(),
-  passwordHash: text("password_hash"),
   // El PIN se guarda con sal (scrypt) para verificarlo, y además con una huella HMAC única
   // (pin_lookup) para encontrar al usuario por PIN sin depender de la sal. La restricción única
   // garantiza que ningún PIN se repita entre usuarios.
@@ -116,9 +115,6 @@ export const devices = pgTable("devices", {
   label: text("label"),
   sessionCredentialHash: text("session_credential_hash").notNull(),
   webauthnCredentialId: text("webauthn_credential_id"),
-  webauthnPublicKey: text("webauthn_public_key"),
-  failedAttempts: integer("failed_attempts").notNull().default(0),
-  lockedUntil: timestamp("locked_until", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
