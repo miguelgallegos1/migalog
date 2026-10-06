@@ -1,5 +1,6 @@
 import { useState } from "react";
-import type { ReactNode } from "react";
+import type { LucideIcon } from "lucide-react";
+import { LayoutDashboard, FilePlus2, History, Building2, Building, Users, UsersRound, UserRound, Truck, Route, MapPin } from "lucide-react";
 import { NavLink, Outlet } from "react-router-dom";
 import { useAuthStore } from "../store/auth";
 import { useIdleLogout } from "../hooks/useIdleLogout";
@@ -13,74 +14,23 @@ const ChevronIcon = ({ open }: { open: boolean }) => (
   </svg>
 );
 
-// Un ícono por ítem de nav (y uno por grupo, chico, al lado del label) - ayuda a reconocer
-// cada destino de un vistazo en vez de solo leer texto, sobre todo con el menú colapsado.
-const DashboardIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
-    <rect x="3" y="3" width="8" height="8" rx="1.5" />
-    <rect x="13" y="3" width="8" height="5" rx="1.5" />
-    <rect x="13" y="12" width="8" height="9" rx="1.5" />
-    <rect x="3" y="15" width="8" height="6" rx="1.5" />
-  </svg>
-);
-const FilePlusIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
-    <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z" />
-    <path d="M14 3v5h5M12 12v6M9 15h6" />
-  </svg>
-);
-const HistoryIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
-    <circle cx="12" cy="12" r="9" />
-    <path d="M12 7v5l3 3" />
-  </svg>
-);
-const BuildingPlusIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
-    <path d="M4 21V5a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v16M4 21h16M9 8h1M9 12h1M9 16h1" />
-    <path d="M19 12v6M16 15h6" />
-  </svg>
-);
-const BuildingIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
-    <path d="M4 21V5a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v16M4 21h16M9 8h1M9 12h1M9 16h1M14 21v-4h4v4" />
-  </svg>
-);
-const UsersIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
-    <circle cx="9" cy="8" r="3" />
-    <path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6M16 8a3 3 0 1 1 0 5.98M20.5 20c0-2.6-1.8-4.8-4.2-5.5" />
-  </svg>
-);
-const SteeringWheelIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
-    <circle cx="12" cy="12" r="9" />
-    <circle cx="12" cy="12" r="2.2" />
-    <path d="M12 3v6.8M6 17.5l4.5-4.3M18 17.5l-4.5-4.3" />
-  </svg>
-);
-const TruckIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
-    <path d="M2 7h11v10H2zM13 10h4l4 3.5V17h-8z" />
-    <circle cx="6.5" cy="18.5" r="1.7" />
-    <circle cx="16.5" cy="18.5" r="1.7" />
-  </svg>
-);
-const RouteIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
-    <circle cx="5" cy="6" r="2.2" />
-    <circle cx="19" cy="18" r="2.2" />
-    <path d="M6.8 7.5C9 10 6 13 9 15.5c2.5 2 5.5-1 8-1" />
-  </svg>
-);
-const MapPinIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
-    <path d="M12 21s7-6.2 7-11.5A7 7 0 0 0 5 9.5C5 14.8 12 21 12 21Z" />
-    <circle cx="12" cy="9.5" r="2.3" />
-  </svg>
-);
+// Íconos de lucide-react (solo se empaquetan los que se importan). Cada sección tiene un color
+// propio para reconocer el destino de un vistazo; las clases van completas para que Tailwind
+// las incluya en el build.
+const TONES = {
+  sky: { idle: "bg-sky-100 text-sky-600 dark:bg-sky-500/20 dark:text-sky-300", active: "bg-sky-500 text-white shadow-sm shadow-sky-500/40" },
+  emerald: { idle: "bg-emerald-100 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-300", active: "bg-emerald-500 text-white shadow-sm shadow-emerald-500/40" },
+  violet: { idle: "bg-violet-100 text-violet-600 dark:bg-violet-500/20 dark:text-violet-300", active: "bg-violet-500 text-white shadow-sm shadow-violet-500/40" },
+  amber: { idle: "bg-amber-100 text-amber-600 dark:bg-amber-500/20 dark:text-amber-300", active: "bg-amber-500 text-white shadow-sm shadow-amber-500/40" },
+  rose: { idle: "bg-rose-100 text-rose-600 dark:bg-rose-500/20 dark:text-rose-300", active: "bg-rose-500 text-white shadow-sm shadow-rose-500/40" },
+  orange: { idle: "bg-orange-100 text-orange-600 dark:bg-orange-500/20 dark:text-orange-300", active: "bg-orange-500 text-white shadow-sm shadow-orange-500/40" },
+  teal: { idle: "bg-teal-100 text-teal-600 dark:bg-teal-500/20 dark:text-teal-300", active: "bg-teal-500 text-white shadow-sm shadow-teal-500/40" },
+  indigo: { idle: "bg-indigo-100 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-300", active: "bg-indigo-500 text-white shadow-sm shadow-indigo-500/40" },
+  fuchsia: { idle: "bg-fuchsia-100 text-fuchsia-600 dark:bg-fuchsia-500/20 dark:text-fuchsia-300", active: "bg-fuchsia-500 text-white shadow-sm shadow-fuchsia-500/40" },
+} as const;
+type Tone = keyof typeof TONES;
 
-type NavItem = { to: string; label: string; roles: Role[]; icon: ReactNode };
+type NavItem = { to: string; label: string; roles: Role[]; icon: LucideIcon; tone: Tone };
 type NavGroup = { label: string; roles: Role[]; items: NavItem[] };
 
 // Roles de nivel 1 (empresa proveedora) que SÍ operan dentro de un tenant. super_admin
@@ -102,15 +52,15 @@ const NAV_GROUPS: NavGroup[] = [
     label: "Rutas",
     roles: [...NIVEL1_OPS, "conductor", ...NIVEL2_ALL],
     items: [
-      { to: "/", label: "Panel de control", roles: [...NIVEL1_OPS, "conductor", ...NIVEL2_ALL], icon: <DashboardIcon /> },
-      { to: "/rutas/nueva", label: "Nueva solicitud", roles: ["cliente_admin", "cliente_coordinador", "cliente_solicitante"], icon: <FilePlusIcon /> },
-      { to: "/historial", label: "Historial", roles: [...NIVEL1_OPS, "cliente_admin", "cliente_coordinador", "cliente_jefe", "cliente_visualizador"], icon: <HistoryIcon /> },
+      { to: "/", label: "Panel de control", roles: [...NIVEL1_OPS, "conductor", ...NIVEL2_ALL], icon: LayoutDashboard, tone: "sky" },
+      { to: "/rutas/nueva", label: "Nueva solicitud", roles: ["cliente_admin", "cliente_coordinador", "cliente_solicitante"], icon: FilePlus2, tone: "emerald" },
+      { to: "/historial", label: "Historial", roles: [...NIVEL1_OPS, "cliente_admin", "cliente_coordinador", "cliente_jefe", "cliente_visualizador"], icon: History, tone: "violet" },
     ],
   },
   {
     label: "Plataforma",
     roles: ["super_admin"],
-    items: [{ to: "/empresas", label: "Crear empresa proveedora", roles: ["super_admin"], icon: <BuildingPlusIcon /> }],
+    items: [{ to: "/empresas", label: "Crear empresa proveedora", roles: ["super_admin"], icon: Building2, tone: "indigo" }],
   },
   {
     // "Administración" y no "Empresas proveedoras": quien lo mira ES la empresa
@@ -118,10 +68,10 @@ const NAV_GROUPS: NavGroup[] = [
     label: "Administración",
     roles: NIVEL1_OPS,
     items: [
-      { to: "/usuarios", label: "Usuarios", roles: ["admin_empresa"], icon: <UsersIcon /> },
-      { to: "/conductores", label: "Conductores", roles: ["admin_empresa"], icon: <SteeringWheelIcon /> },
-      { to: "/camiones", label: "Camiones", roles: ["admin_empresa"], icon: <TruckIcon /> },
-      { to: "/catalogo", label: "Catálogo de rutas", roles: NIVEL1_OPS, icon: <RouteIcon /> },
+      { to: "/usuarios", label: "Usuarios", roles: ["admin_empresa"], icon: Users, tone: "indigo" },
+      { to: "/conductores", label: "Conductores", roles: ["admin_empresa"], icon: UserRound, tone: "orange" },
+      { to: "/camiones", label: "Camiones", roles: ["admin_empresa"], icon: Truck, tone: "teal" },
+      { to: "/catalogo", label: "Catálogo de rutas", roles: NIVEL1_OPS, icon: Route, tone: "amber" },
     ],
   },
   {
@@ -131,14 +81,14 @@ const NAV_GROUPS: NavGroup[] = [
       // admin_empresa solo crea empresas cliente acá - no solicita ni aprueba rutas, eso es
       // decisión de la empresa cliente. La gestión de usuarios propios ya vive en
       // "Administración → Usuarios", no se duplica acá.
-      { to: "/clientes", label: "Crear empresa cliente", roles: ["admin_empresa"], icon: <BuildingIcon /> },
-      { to: "/usuarios", label: "Mi equipo", roles: ["cliente_admin"], icon: <UsersIcon /> },
-      { to: "/sitios", label: "Sitios", roles: ["cliente_admin", "cliente_coordinador", "cliente_solicitante"], icon: <MapPinIcon /> },
-      { to: "/catalogo", label: "Catálogo de rutas", roles: ["cliente_admin", "cliente_coordinador", "cliente_solicitante"], icon: <RouteIcon /> },
+      { to: "/clientes", label: "Crear empresa cliente", roles: ["admin_empresa"], icon: Building, tone: "fuchsia" },
+      { to: "/usuarios", label: "Mi equipo", roles: ["cliente_admin"], icon: UsersRound, tone: "indigo" },
+      { to: "/sitios", label: "Sitios", roles: ["cliente_admin", "cliente_coordinador", "cliente_solicitante"], icon: MapPin, tone: "rose" },
+      { to: "/catalogo", label: "Catálogo de rutas", roles: ["cliente_admin", "cliente_coordinador", "cliente_solicitante"], icon: Route, tone: "amber" },
       // Flota propia de la empresa cliente - puede despachar sus propias rutas con su
       // propio camión + conductor, sin depender de la proveedora (ver RouteDetail.tsx).
-      { to: "/conductores", label: "Conductores", roles: ["cliente_admin", "cliente_coordinador"], icon: <SteeringWheelIcon /> },
-      { to: "/camiones", label: "Camiones", roles: ["cliente_admin", "cliente_coordinador"], icon: <TruckIcon /> },
+      { to: "/conductores", label: "Conductores", roles: ["cliente_admin", "cliente_coordinador"], icon: UserRound, tone: "orange" },
+      { to: "/camiones", label: "Camiones", roles: ["cliente_admin", "cliente_coordinador"], icon: Truck, tone: "teal" },
     ],
   },
 ];
@@ -168,11 +118,11 @@ function NavLinkItem({ item, onClick, collapsed = false }: { item: NavItem; onCl
       {({ isActive }) => (
         <>
           <span
-            className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md transition-colors ${
-              isActive ? "bg-brand-500 text-white shadow-sm shadow-brand-500/40" : "text-slate-400 dark:text-slate-500"
+            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-colors ${
+              isActive ? TONES[item.tone].active : TONES[item.tone].idle
             }`}
           >
-            {item.icon}
+            <item.icon className="h-4 w-4" strokeWidth={2.2} aria-hidden="true" />
           </span>
           {!collapsed && item.label}
         </>
