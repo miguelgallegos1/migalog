@@ -158,6 +158,9 @@ export default function Perfil() {
                     </li>
                   ))}
                 </ul>
+                {currentPassword && newPassword === currentPassword && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400">Debe ser distinta de la actual</p>
+                )}
               </>
             )}
           </div>

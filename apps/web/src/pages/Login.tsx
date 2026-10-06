@@ -41,6 +41,12 @@ const FingerprintIcon = () => (
   </svg>
 );
 
+// Pantalla de inicio por rol. Se navega directo a ella desde el login: ir a "/" y redirigir
+// después mostraba un destello del panel antes de llegar a /empresas.
+function homeFor(role: string) {
+  return role === "super_admin" ? "/empresas" : "/";
+}
+
 export default function Login() {
   const [mode, setMode] = useState<"password" | "pin">("pin");
   const [phone, setPhone] = useState("");
@@ -77,7 +83,7 @@ export default function Login() {
       }
       const res = await api.post<LoginResponse>("/auth/session/refresh", { deviceId, deviceRefreshToken });
       setSession(res.accessToken, res.user);
-      navigate("/");
+      navigate(homeFor(res.user.role));
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "No se pudo iniciar sesión");
     } finally {
@@ -92,7 +98,7 @@ export default function Login() {
     try {
       const res = await api.post<LoginResponse>("/auth/login-password", { phone, password });
       setSession(res.accessToken, res.user);
-      navigate("/");
+      navigate(homeFor(res.user.role));
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "No se pudo iniciar sesión");
     } finally {
@@ -112,7 +118,7 @@ export default function Login() {
     try {
       const res = await api.post<LoginResponse>("/auth/login-pin", { deviceId, pin });
       setSession(res.accessToken, res.user);
-      navigate("/");
+      navigate(homeFor(res.user.role));
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "No se pudo iniciar sesión");
     } finally {
