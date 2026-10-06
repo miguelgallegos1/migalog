@@ -18,6 +18,18 @@ const LockIcon = () => (
     <path d="M8 11V7a4 4 0 0 1 8 0v4" />
   </svg>
 );
+const EyeIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
+    <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
+    <circle cx="12" cy="12" r="3" />
+  </svg>
+);
+const EyeOffIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
+    <path d="M3 3l18 18M10.6 5.1A10 10 0 0 1 12 5c6.5 0 10 7 10 7a17.6 17.6 0 0 1-3.2 4.2M6.6 6.6C3.8 8.3 2 12 2 12s3.5 7 10 7c1.7 0 3.2-.5 4.5-1.2" />
+    <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" />
+  </svg>
+);
 const ShieldIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5">
     <path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3Z" />
@@ -56,6 +68,7 @@ export default function Login() {
   const [needsSetup, setNeedsSetup] = useState(!getStoredDeviceId());
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [bioAvailable, setBioAvailable] = useState(false);
   const setSession = useAuthStore((s) => s.setSession);
   const navigate = useNavigate();
@@ -146,6 +159,8 @@ export default function Login() {
 
   const inputClass =
     "w-full rounded-xl border border-slate-300 bg-slate-100 py-3 pl-11 pr-3 text-sm text-slate-900 placeholder:text-slate-500 outline-none transition-colors focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30 dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-100 dark:placeholder:text-slate-400";
+  // Igual que inputClass pero con espacio a la derecha para el ojito de mostrar/ocultar.
+  const passwordInputClass = inputClass.replace("pr-3", "pr-11");
   const centeredInputClass =
     "w-full rounded-xl border border-slate-300 bg-slate-100 py-3 px-4 text-center text-sm text-slate-900 placeholder:text-slate-500 outline-none transition-colors focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30 dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-100 dark:placeholder:text-slate-400";
   const primaryButtonClass =
@@ -221,7 +236,24 @@ export default function Login() {
               <PhoneInput required value={phone} onChange={setPhone} />
               <div className="relative">
                 <span className={`pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 ${secondaryTextClass}`}><LockIcon /></span>
-                <input type="password" required placeholder="Contraseña" value={password} onChange={(e) => setPassword(e.target.value)} className={inputClass} />
+                <input
+                  type={showPassword ? "text" : "password"}
+                  required
+                  placeholder="Contraseña"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="current-password"
+                  className={passwordInputClass}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+                  title={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+                  className={`absolute right-3.5 top-1/2 -translate-y-1/2 rounded-md p-1 transition-colors hover:text-slate-700 dark:hover:text-slate-200 ${secondaryTextClass}`}
+                >
+                  {showPassword ? <EyeOffIcon /> : <EyeIcon />}
+                </button>
               </div>
               <button disabled={loading} className={`mt-2 ${primaryButtonClass}`}>
                 {loading ? "Ingresando..." : "Ingresar"}
