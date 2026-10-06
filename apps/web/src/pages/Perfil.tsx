@@ -25,7 +25,6 @@ export default function Perfil() {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [showPasswords, setShowPasswords] = useState(false);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
 
   useEffect(() => {
@@ -78,8 +77,6 @@ export default function Perfil() {
     save.mutate();
   }
 
-  const inputType = showPasswords ? "text" : "password";
-
   return (
     <div className="max-w-lg">
       <h1 className="mb-1 text-xl font-bold text-slate-900 dark:text-white">Mi perfil</h1>
@@ -93,19 +90,11 @@ export default function Perfil() {
         </section>
 
         <section className="flex flex-col gap-4 border-t border-slate-100 pt-5 dark:border-slate-800">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Cambiar contraseña (opcional)</p>
-            <button
-              type="button"
-              onClick={() => setShowPasswords((v) => !v)}
-              className="text-xs font-medium text-brand-600 hover:text-brand-500 dark:text-brand-400"
-            >
-              {showPasswords ? "Ocultar" : "Mostrar"}
-            </button>
-          </div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Cambiar contraseña (opcional)</p>
 
           <Input
-            type={inputType}
+            type="password"
+            revealable
             preserveCase
             label="Contraseña actual" placeholder="Tu contraseña actual"
             autoComplete="current-password"
@@ -115,7 +104,8 @@ export default function Perfil() {
 
           <div className="flex flex-col gap-2">
             <Input
-              type={inputType}
+              type="password"
+              revealable
               preserveCase
               label="Nueva contraseña"
               placeholder="Mínimo 8 caracteres"
@@ -149,7 +139,8 @@ export default function Perfil() {
 
           <div className="flex flex-col gap-1">
             <Input
-              type={inputType}
+              type="password"
+              revealable
               preserveCase
               label="Repite la nueva contraseña" placeholder="Escríbela de nuevo"
               autoComplete="new-password"

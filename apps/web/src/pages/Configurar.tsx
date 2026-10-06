@@ -73,6 +73,7 @@ export default function Configurar() {
               <Input
                 type="password"
                 preserveCase
+                revealable
                 label="Contraseña nueva"
                 placeholder="Mínimo 8 caracteres"
                 autoComplete="new-password"
@@ -103,6 +104,7 @@ export default function Configurar() {
             <Input
               type="password"
               preserveCase
+              revealable
               label="Repite la contraseña"
               placeholder="Escríbela de nuevo"
               autoComplete="new-password"

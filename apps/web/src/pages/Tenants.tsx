@@ -49,9 +49,10 @@ export default function Tenants() {
   const { data: tenants, isLoading } = useQuery({ queryKey: ["tenants"], queryFn: () => api.get<Tenant[]>("/tenants") });
 
   const filteredTenants = useMemo(() => {
+    const list = Array.isArray(tenants) ? tenants : [];
     const q = search.trim().toLowerCase();
-    if (!q) return tenants ?? [];
-    return (tenants ?? []).filter((t) => t.name.toLowerCase().includes(q) || t.ruc.toLowerCase().includes(q));
+    if (!q) return list;
+    return list.filter((t) => t.name.toLowerCase().includes(q) || t.ruc.toLowerCase().includes(q));
   }, [tenants, search]);
 
   function setField<K extends keyof FormState>(key: K, value: string) {
