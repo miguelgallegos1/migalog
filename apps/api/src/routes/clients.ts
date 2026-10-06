@@ -5,7 +5,7 @@ import { db } from "../db/client.js";
 import { clients, users } from "../db/schema.js";
 import { and, asc, eq } from "drizzle-orm";
 import { signSetupToken } from "../lib/jwt.js";
-import { firstOrThrow, isForeignKeyViolation } from "../lib/db-helpers.js";
+import { firstOrThrow, isForeignKeyViolation, isUniqueViolation } from "../lib/db-helpers.js";
 import { param } from "../lib/http.js";
 import { requireAuth, requireTenant, requireRole, type AppVariables } from "../middleware/auth.js";
 
@@ -50,19 +50,40 @@ const createSchema = z.object({
   adminPhone: phoneSchema,
 });
 
+/** Mensaje en español según la restricción que chocó (el texto de Postgres trae el nombre de la columna). */
+function duplicateMessage(err: unknown): string {
+  const e = err as { message?: string; detail?: string; constraint?: string };
+  const text = `${e.message ?? ""} ${e.detail ?? ""} ${e.constraint ?? ""}`;
+  if (/ruc/i.test(text)) return "Ya existe una empresa cliente con ese RUC";
+  if (/phone/i.test(text)) return "Ya existe un usuario con ese teléfono";
+  return "Ya existe un registro con esos datos";
+}
+
 clientRoutes.post("/", requireRole("admin_empresa", "super_admin"), async (c) => {
   const tenantId = c.get("tenantId") as string;
   const body = createSchema.parse(await c.req.json());
 
-  const client = firstOrThrow(await db.insert(clients).values({ tenantId, ruc: body.ruc, name: body.name }).returning());
-  // Variable, no literal directo en .values() (ver seed.ts para el detalle de por qué no se anota con typeof users.$inferInsert).
-  const adminValues = { tenantId, clientId: client.id, role: "cliente_admin" as const, name: body.adminName, phone: body.adminPhone };
-  const admin = firstOrThrow(
-    await db.insert(users).values(adminValues as any).returning()
-  );
+  // La empresa y su administrador se insertan en un solo lote (transacción en Neon): si el
+  // administrador no se puede crear (p. ej. teléfono repetido), no queda una empresa huérfana
+  // que después bloquee reintentar con el mismo RUC.
+  const clientId = crypto.randomUUID();
+  // Variables, no literales directos en .values() (ver seed.ts para el detalle de por qué no se anota con typeof users.$inferInsert).
+  const clientValues = { id: clientId, tenantId, ruc: body.ruc, name: body.name };
+  const adminValues = { tenantId, clientId, role: "cliente_admin" as const, name: body.adminName, phone: body.adminPhone };
+  try {
+    const results = (await db.batch([
+      db.insert(clients).values(clientValues as any).returning(),
+      db.insert(users).values(adminValues as any).returning(),
+    ] as any)) as unknown[][];
+    const client = firstOrThrow(results[0] as (typeof clients.$inferSelect)[]);
+    const admin = firstOrThrow(results[1] as (typeof users.$inferSelect)[]);
 
-  const setupToken = await signSetupToken(admin);
-  return c.json({ client, admin, setupToken }, 201);
+    const setupToken = await signSetupToken(admin);
+    return c.json({ client, admin, setupToken }, 201);
+  } catch (err) {
+    if (isUniqueViolation(err)) return c.json({ error: duplicateMessage(err) }, 409);
+    throw err;
+  }
 });
 
 clientRoutes.get("/:id", async (c) => {

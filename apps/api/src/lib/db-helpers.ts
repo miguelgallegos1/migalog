@@ -13,3 +13,8 @@ export function firstOrThrow<T>(rows: T[], message = "No se encontró el registr
 export function isForeignKeyViolation(err: unknown): boolean {
   return !!err && typeof err === "object" && "code" in err && err.code === "23503";
 }
+
+/** 23505 = unique_violation: ya existe un registro con ese RUC, teléfono, etc. */
+export function isUniqueViolation(err: unknown): boolean {
+  return !!err && typeof err === "object" && "code" in err && err.code === "23505";
+}
