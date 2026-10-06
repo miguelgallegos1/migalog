@@ -21,18 +21,6 @@ export default defineConfig({
   ],
   server: { port: 5173 },
   build: {
-    rollupOptions: {
-      output: {
-        // mapbox-gl (~1.8MB) se usa en dos puntos independientes que cargan en lazy (el mapa
-        // del panel de control y el selector de ubicación de Sitios) - sin esto, cada uno lo
-        // empaqueta por separado y el navegador lo descarga dos veces. Forzado a un chunk de
-        // vendor propio, se descarga una sola vez y queda cacheado entre despliegues de la
-        // app (el código propio cambia seguido, estas librerías casi nunca).
-        manualChunks: {
-          mapbox: ["mapbox-gl", "react-map-gl"],
-          ably: ["ably"],
-        },
-      },
-    },
+    // Sin chunks forzados: Rollup agrupa cada librería con la pantalla que la usa, así el login no carga nada de tiempo real ni de mapas.
   },
 });

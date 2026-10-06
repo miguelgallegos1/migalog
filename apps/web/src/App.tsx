@@ -3,7 +3,6 @@ import { Routes, Route } from "react-router-dom";
 import { Layout } from "./components/Layout";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import Login from "./pages/Login";
-import ControlCenter from "./pages/ControlCenter";
 
 // Todo lo que no sea el login ni el panel de control (las dos pantallas que SIEMPRE se
 // abren apenas se entra a la app) va en su propio chunk - antes se importaban las ~12
@@ -21,6 +20,8 @@ const Users = lazy(() => import("./pages/Users"));
 const Tenants = lazy(() => import("./pages/Tenants"));
 const Sites = lazy(() => import("./pages/Sites"));
 const Perfil = lazy(() => import("./pages/Perfil"));
+// El panel carga Ably (tiempo real) y el mapa: se baja solo al entrar al panel, no en el login.
+const ControlCenter = lazy(() => import("./pages/ControlCenter"));
 
 function RouteFallback() {
   return <div className="flex min-h-[50vh] items-center justify-center text-sm text-slate-400 dark:text-slate-500">Cargando...</div>;
@@ -33,7 +34,7 @@ export default function App() {
 
       <Route element={<ProtectedRoute />}>
         <Route element={<Layout />}>
-          <Route path="/" element={<ControlCenter />} />
+          <Route path="/" element={<Suspense fallback={<RouteFallback />}><ControlCenter /></Suspense>} />
           <Route
             path="/rutas/nueva"
             element={
