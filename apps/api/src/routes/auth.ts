@@ -317,6 +317,7 @@ authRoutes.patch("/me", requireAuth, async (c) => {
     const current = body.currentPassword ?? "";
     const ok = user.passwordHash ? await verifySecret(user.passwordHash, current) : false;
     if (!ok) return c.json({ error: "La contraseña actual no es correcta" }, 400);
+    if (body.newPassword === current) return c.json({ error: "La nueva contraseña debe ser distinta de la actual" }, 400);
     values.passwordHash = await hashSecret(body.newPassword);
   }
   if (Object.keys(values).length > 0) {

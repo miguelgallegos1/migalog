@@ -6,6 +6,7 @@ import { Button } from "../components/Button";
 import { Input } from "../components/Input";
 import { PhoneInput } from "../components/PhoneInput";
 import { ROLE_LABELS } from "../lib/roleLabels";
+import { Loader2 } from "lucide-react";
 
 type Me = { id: string; name: string; phone: string | null; role: string };
 
@@ -54,7 +55,7 @@ export default function Perfil() {
 
   const rules = useMemo(() => passwordRules(newPassword), [newPassword]);
   const strength = useMemo(() => strengthOf(newPassword), [newPassword]);
-  const rulesOk = rules.every((r) => r.ok);
+  const rulesOk = rules.every((r) => r.ok) && newPassword !== currentPassword;
   const matches = confirmPassword.length > 0 && newPassword === confirmPassword;
   const mismatch = confirmPassword.length > 0 && newPassword !== confirmPassword;
   const changingPassword = newPassword.length > 0 || confirmPassword.length > 0 || currentPassword.length > 0;
@@ -185,7 +186,8 @@ export default function Perfil() {
           <p className="text-xs text-slate-500 dark:text-slate-400">
             {!hasChanges ? "Sin cambios pendientes" : !passwordValid && changingPassword ? "Completa la contraseña para guardar" : "Hay cambios sin guardar"}
           </p>
-          <Button type="submit" disabled={!canSave || save.isPending}>
+          <Button type="submit" disabled={!canSave || save.isPending} className="inline-flex items-center gap-2">
+            {save.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
             {save.isPending ? "Guardando..." : "Guardar cambios"}
           </Button>
         </div>
