@@ -17,10 +17,12 @@ export const CheckIcon = ({ className = "h-4 w-4" }: IconProps) => (
   </svg>
 );
 
+// Círculo con admiración redondeada: aviso sin el tono de "peligro" de un triángulo.
 export const AlertIcon = ({ className = "h-4 w-4" }: IconProps) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className}>
-    <path d="M12 3 2 20h20L12 3Z" />
-    <path d="M12 10v4M12 17h.01" />
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 8v4.5" />
+    <path d="M12 16h.01" strokeWidth="2.6" />
   </svg>
 );
 
