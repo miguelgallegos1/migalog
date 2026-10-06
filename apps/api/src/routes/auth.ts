@@ -296,7 +296,7 @@ const updateMeSchema = z.object({
     .min(8, "La nueva contraseña debe tener al menos 8 caracteres")
     .regex(/[A-ZÁÉÍÓÚÑ]/, "La nueva contraseña necesita una mayúscula")
     .regex(/[a-záéíóúñ]/, "La nueva contraseña necesita una minúscula")
-    .regex(/d/, "La nueva contraseña necesita un número")
+    .regex(/\d/, "La nueva contraseña necesita un número")
     .optional(),
 });
 
