@@ -633,7 +633,7 @@ export default function RouteCatalog() {
                 error={fieldErrors.time}
               />
               <p className="text-[11px] text-slate-400 dark:text-slate-500">
-                {timeAutoRef.current && distanceKm != null ? "Calculado según la distancia - lo podés ajustar a mano." : "Podés ajustarlo a mano."}
+                {timeAutoRef.current && distanceKm != null ? "Calculado según la distancia - lo puedes ajustar a mano." : "Puedes ajustarlo a mano."}
               </p>
             </div>
 

@@ -302,7 +302,7 @@ export default function NewRouteRequest() {
             <Select
               value={templateId}
               onChange={(v) => { setTemplateId(v); setFieldErrors((f) => ({ ...f, templateId: undefined })); }}
-              placeholder="Elegí una ruta..."
+              placeholder="Elige una ruta..."
               options={(templates ?? []).map((t) => ({
                 value: t.id,
                 label: `${t.name}${t.estimatedMinutes != null ? ` · ${formatDuration(t.estimatedMinutes)}` : ""}`,

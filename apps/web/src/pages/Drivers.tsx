@@ -275,7 +275,7 @@ export default function Drivers() {
                 />
                 <div className="flex flex-col gap-1">
                   <label className="text-xs text-slate-500 dark:text-slate-400">Camión asignado</label>
-                  <Select value={form.vehicleId} onChange={(v) => setForm((f) => ({ ...f, vehicleId: v }))} options={vehicleOptions} placeholder="Elegí un camión..." />
+                  <Select value={form.vehicleId} onChange={(v) => setForm((f) => ({ ...f, vehicleId: v }))} options={vehicleOptions} placeholder="Elige un camión..." />
                 </div>
                 <div className="flex flex-col gap-1">
                   <label className="text-xs text-slate-500 dark:text-slate-400">Vigencia de la licencia</label>
@@ -315,7 +315,7 @@ export default function Drivers() {
               </p>
               <div className="flex flex-col gap-1">
                 <label className="text-xs text-slate-500 dark:text-slate-400">Camión asignado</label>
-                <Select value={editVehicleId} onChange={setEditVehicleId} options={vehicleOptions} placeholder="Elegí un camión..." />
+                <Select value={editVehicleId} onChange={setEditVehicleId} options={vehicleOptions} placeholder="Elige un camión..." />
               </div>
               <div className="flex flex-col gap-1">
                 <label className="text-xs text-slate-500 dark:text-slate-400">Vigencia de la licencia</label>

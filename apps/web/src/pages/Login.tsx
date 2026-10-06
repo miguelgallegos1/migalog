@@ -225,7 +225,7 @@ export default function Login() {
 
           {mode === "pin" && !needsSetup && (
             <form onSubmit={submitPin} className="flex flex-col items-center gap-5">
-              <p className={`text-sm ${secondaryTextClass}`}>Ingresá tu PIN de 6 dígitos</p>
+              <p className={`text-sm ${secondaryTextClass}`}>Ingresa tu PIN de 6 dígitos</p>
               <PinPad value={pin} onChange={setPin} autoFocus />
               <button disabled={loading || pin.length !== 6} className={primaryButtonClass}>
                 {loading ? "Ingresando..." : "Ingresar"}
@@ -248,7 +248,7 @@ export default function Login() {
             <form onSubmit={submitSetup} className="flex flex-col items-center gap-5">
               <div className="flex flex-col items-center gap-2 text-center">
                 <span className="text-brand-500 dark:text-brand-400"><InviteIcon /></span>
-                <p className={`text-sm ${secondaryTextClass}`}>Primera vez en este dispositivo: pegá tu código de invitación</p>
+                <p className={`text-sm ${secondaryTextClass}`}>Primera vez en este dispositivo: pega tu código de invitación</p>
               </div>
               <input
                 required
@@ -260,7 +260,7 @@ export default function Login() {
               {setupToken.trim().length > 0 && (
                 <>
                   <div className={`flex items-center gap-2 text-xs font-medium uppercase tracking-wide ${secondaryTextClass}`}>
-                    <ShieldIcon /> Ingresá tu PIN
+                    <ShieldIcon /> Ingresa tu PIN
                   </div>
                   <PinPad value={pin} onChange={setPin} />
                 </>

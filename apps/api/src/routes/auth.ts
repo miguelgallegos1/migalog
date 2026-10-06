@@ -291,7 +291,13 @@ const updateMeSchema = z.object({
   name: z.string().min(1).optional(),
   phone: phoneSchema.optional(),
   currentPassword: z.string().optional(),
-  newPassword: z.string().min(8, "La nueva contraseña debe tener al menos 8 caracteres").optional(),
+  newPassword: z
+    .string()
+    .min(8, "La nueva contraseña debe tener al menos 8 caracteres")
+    .regex(/[A-ZÁÉÍÓÚÑ]/, "La nueva contraseña necesita una mayúscula")
+    .regex(/[a-záéíóúñ]/, "La nueva contraseña necesita una minúscula")
+    .regex(/d/, "La nueva contraseña necesita un número")
+    .optional(),
 });
 
 authRoutes.patch("/me", requireAuth, async (c) => {
