@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import { usesPassword, usesPin, isClientRole, inviteUserSchema, loginPasswordSchema, loginPinSchema } from "@migalog/shared";
+import { usesPassword, usesPin, isClientRole, inviteUserSchema, loginPasswordSchema, loginPinSchema, phoneSchema } from "@migalog/shared";
 import { db } from "../db/client.js";
 import { users, devices, clients, tenants } from "../db/schema.js";
 import { eq, and } from "drizzle-orm";
@@ -249,7 +249,7 @@ const registerDeviceSchema = z.object({ deviceLabel: z.string().optional() });
  */
 authRoutes.post("/device/register", requireAuth, async (c) => {
   const { deviceLabel } = registerDeviceSchema.parse(await c.req.json().catch(() => ({})));
-  const userId = c.get("userId");
+  const userId = c.get("userId") as string;
 
   const deviceRefreshToken = randomToken();
   const sessionCredentialHash = await hashSecret(deviceRefreshToken);
@@ -268,7 +268,7 @@ authRoutes.post("/device/register", requireAuth, async (c) => {
 authRoutes.post("/device/enable-biometric", requireAuth, async (c) => {
   const schema = z.object({ deviceId: z.string().uuid(), webauthnCredentialId: z.string() });
   const { deviceId, webauthnCredentialId } = schema.parse(await c.req.json());
-  const userId = c.get("userId");
+  const userId = c.get("userId") as string;
 
   const [device] = await db
     .select()
@@ -278,5 +278,43 @@ authRoutes.post("/device/enable-biometric", requireAuth, async (c) => {
 
   const biometricValues = { webauthnCredentialId };
   await db.update(devices).set(biometricValues as any).where(eq(devices.id, deviceId));
+  return c.json({ ok: true });
+});
+
+authRoutes.get("/me", requireAuth, async (c) => {
+  const [user] = await db.select({ id: users.id, name: users.name, phone: users.phone, role: users.role }).from(users).where(eq(users.id, c.get("userId") as string));
+  if (!user) return c.json({ error: "Usuario no encontrado" }, 404);
+  return c.json(user);
+});
+
+const updateMeSchema = z.object({
+  name: z.string().min(1).optional(),
+  phone: phoneSchema.optional(),
+  currentPassword: z.string().optional(),
+  newPassword: z.string().min(8, "La nueva contraseña debe tener al menos 8 caracteres").optional(),
+});
+
+authRoutes.patch("/me", requireAuth, async (c) => {
+  const body = updateMeSchema.parse(await c.req.json());
+  const userId = c.get("userId") as string;
+  const [user] = await db.select().from(users).where(eq(users.id, userId));
+  if (!user) return c.json({ error: "Usuario no encontrado" }, 404);
+
+  const values: Partial<typeof users.$inferInsert> = {};
+  if (body.name) values.name = body.name;
+  if (body.phone && body.phone !== user.phone) {
+    const [taken] = await db.select({ id: users.id }).from(users).where(eq(users.phone, body.phone));
+    if (taken) return c.json({ error: "Ese teléfono ya está registrado en otra cuenta" }, 409);
+    values.phone = body.phone;
+  }
+  if (body.newPassword) {
+    const current = body.currentPassword ?? "";
+    const ok = user.passwordHash ? await verifySecret(user.passwordHash, current) : false;
+    if (!ok) return c.json({ error: "La contraseña actual no es correcta" }, 400);
+    values.passwordHash = await hashSecret(body.newPassword);
+  }
+  if (Object.keys(values).length > 0) {
+    await db.update(users).set(values as any).where(eq(users.id, userId));
+  }
   return c.json({ ok: true });
 });

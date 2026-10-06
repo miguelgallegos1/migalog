@@ -20,6 +20,7 @@ const Vehicles = lazy(() => import("./pages/Vehicles"));
 const Users = lazy(() => import("./pages/Users"));
 const Tenants = lazy(() => import("./pages/Tenants"));
 const Sites = lazy(() => import("./pages/Sites"));
+const Perfil = lazy(() => import("./pages/Perfil"));
 
 function RouteFallback() {
   return <div className="flex min-h-[50vh] items-center justify-center text-sm text-slate-400 dark:text-slate-500">Cargando...</div>;
@@ -102,6 +103,14 @@ export default function App() {
             element={
               <Suspense fallback={<RouteFallback />}>
                 <Users />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/perfil"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <Perfil />
               </Suspense>
             }
           />
