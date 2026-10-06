@@ -1,5 +1,5 @@
-import Map, { Marker, Popup } from "react-map-gl";
-import { useEffect, useState } from "react";
+import Map, { Marker, Popup, type MapRef } from "react-map-gl";
+import { useEffect, useRef, useState } from "react";
 import "mapbox-gl/dist/mapbox-gl.css";
 
 export type MapMarker = { id: string; lat: number; lng: number; label: string };
@@ -15,25 +15,26 @@ export function RoutesMap({ markers }: { markers: MapMarker[] }) {
   const token = import.meta.env.VITE_MAPBOX_TOKEN;
   const first = markers[0];
 
+  const mapRef = useRef<MapRef>(null);
   const [geoCenter, setGeoCenter] = useState<{ latitude: number; longitude: number } | null>(null);
-  const [geoResolved, setGeoResolved] = useState(false);
 
+  // La geolocalización NO bloquea el dibujo del mapa: se pide en segundo plano y, si llega,
+  // el mapa se mueve a la zona de quien mira (antes esperaba hasta 5 s con un bloque gris).
   useEffect(() => {
-    // Ya hay un camión para centrar - ni hace falta pedir geolocalización.
-    if (first || typeof navigator === "undefined" || !navigator.geolocation) {
-      setGeoResolved(true);
-      return;
-    }
+    if (first || typeof navigator === "undefined" || !navigator.geolocation) return;
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setGeoCenter({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
-        setGeoResolved(true);
-      },
-      () => setGeoResolved(true),
+      (pos) => setGeoCenter({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
+      () => {},
       { timeout: 5000 }
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [!!first]);
+
+  useEffect(() => {
+    if (!geoCenter || first) return;
+    mapRef.current?.flyTo({ center: [geoCenter.longitude, geoCenter.latitude], zoom: 12, duration: 1200 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [geoCenter]);
 
   if (!token) {
     return (
@@ -47,19 +48,12 @@ export function RoutesMap({ markers }: { markers: MapMarker[] }) {
     );
   }
 
-  if (!geoResolved) {
-    return <div className="h-full min-h-[320px] animate-pulse rounded-xl bg-slate-100 dark:bg-slate-900/40" />;
-  }
-
-  const view = first
-    ? { latitude: first.lat, longitude: first.lng, zoom: 11 }
-    : geoCenter
-      ? { latitude: geoCenter.latitude, longitude: geoCenter.longitude, zoom: 12 }
-      : WORLD_VIEW;
+  const view = first ? { latitude: first.lat, longitude: first.lng, zoom: 11 } : WORLD_VIEW;
 
   return (
     <div className="h-full min-h-[320px] overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800">
       <Map
+        ref={mapRef}
         mapboxAccessToken={token}
         initialViewState={view}
         style={{ width: "100%", height: "100%" }}
