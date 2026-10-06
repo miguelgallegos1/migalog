@@ -61,7 +61,7 @@ clientRoutes.post("/", requireRole("admin_empresa", "super_admin"), async (c) =>
     await db.insert(users).values(adminValues as any).returning()
   );
 
-  const setupToken = await signSetupToken(admin.id);
+  const setupToken = await signSetupToken(admin);
   return c.json({ client, admin, setupToken }, 201);
 });
 

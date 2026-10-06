@@ -101,8 +101,8 @@ async function main() {
   // un código de invitación real para cada uno: así se puede probar el flujo completo desde
   // el navegador (pantalla "primera vez en este dispositivo" -> pegar código -> elegir PIN),
   // que es como un usuario real terminaría configurando su celular.
-  const conductorSetupToken = await signSetupToken(conductorUser.id);
-  const solicitanteSetupToken = await signSetupToken(solicitanteUser.id);
+  const conductorSetupToken = await signSetupToken(conductorUser);
+  const solicitanteSetupToken = await signSetupToken(solicitanteUser);
 
   const passwordUsers: { role: Role; phone: string | null }[] = [
     { role: superAdmin.role, phone: superAdmin.phone },

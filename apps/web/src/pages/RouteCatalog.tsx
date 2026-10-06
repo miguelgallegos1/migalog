@@ -695,7 +695,7 @@ export default function RouteCatalog() {
       {deleteTarget && (
         <Modal title="Eliminar ruta" onClose={() => setDeleteTarget(null)}>
           <div className="flex flex-col items-center gap-3 text-center">
-            <span className="text-red-500"><AlertIcon className="h-10 w-10" /></span>
+            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-red-50 text-red-500 dark:bg-red-950/40 dark:text-red-400"><AlertIcon className="h-6 w-6" /></span>
             <p className="text-sm text-slate-700 dark:text-slate-300">
               ¿Eliminar <strong>{deleteTarget.name}</strong> del catálogo? Esta acción no se puede deshacer.
             </p>
@@ -765,7 +765,7 @@ function PendingRow({ template, onApprove, onReject }: { template: RouteTemplate
       {confirming && (
         <Modal title={confirming === "approve" ? "Confirmar aprobación" : "Confirmar rechazo"} onClose={() => setConfirming(null)}>
           <div className="flex flex-col items-center gap-3 text-center">
-            <span className={confirming === "approve" ? "text-emerald-500" : "text-red-500"}><AlertIcon className="h-10 w-10" /></span>
+            <span className={`flex h-12 w-12 items-center justify-center rounded-full ${confirming === "approve" ? "bg-emerald-50 text-emerald-500 dark:bg-emerald-950/40 dark:text-emerald-400" : "bg-red-50 text-red-500 dark:bg-red-950/40 dark:text-red-400"}`}><AlertIcon className="h-6 w-6" /></span>
             {confirming === "approve" ? (
               <p className="text-sm text-slate-700 dark:text-slate-300">
                 ¿Aprobar <strong>{template.name}</strong> con valor <strong>${price}</strong>

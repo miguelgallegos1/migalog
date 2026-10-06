@@ -2,8 +2,8 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { phoneSchema, rucSchema } from "@migalog/shared";
 import { db } from "../db/client.js";
-import { tenants, users } from "../db/schema.js";
-import { asc, eq } from "drizzle-orm";
+import { devices, tenants, users } from "../db/schema.js";
+import { asc, eq, inArray } from "drizzle-orm";
 import { signSetupToken } from "../lib/jwt.js";
 import { firstOrThrow, isForeignKeyViolation } from "../lib/db-helpers.js";
 import { requireAuth, requireRole, type AppVariables } from "../middleware/auth.js";
@@ -76,7 +76,7 @@ tenantRoutes.post("/", async (c) => {
     await db.insert(users).values(adminValues as any).returning()
   );
 
-  const setupToken = await signSetupToken(admin.id);
+  const setupToken = await signSetupToken(admin);
   return c.json({ tenant, admin, setupToken });
 });
 
@@ -103,8 +103,20 @@ tenantRoutes.patch("/:id", async (c) => {
 tenantRoutes.delete("/:id", async (c) => {
   const id = c.req.param("id");
   try {
-    const [deleted] = await db.delete(tenants).where(eq(tenants.id, id)).returning();
-    if (!deleted) return c.json({ error: "Empresa no encontrada" }, 404);
+    const [existing] = await db.select({ id: tenants.id }).from(tenants).where(eq(tenants.id, id));
+    if (!existing) return c.json({ error: "Empresa no encontrada" }, 404);
+
+    // Los usuarios de la empresa (p. ej. el administrador creado junto con ella) se borran en el
+    // mismo lote: neon-http ejecuta un batch como una sola transacción, así que si algo más
+    // (clientes, rutas, camiones...) todavía depende de la empresa, todo se revierte y sale el 409.
+    const userIds = (await db.select({ id: users.id }).from(users).where(eq(users.tenantId, id))).map((u) => u.id);
+    const ops: unknown[] = [];
+    if (userIds.length > 0) {
+      ops.push(db.delete(devices).where(inArray(devices.userId, userIds)));
+      ops.push(db.delete(users).where(inArray(users.id, userIds)));
+    }
+    ops.push(db.delete(tenants).where(eq(tenants.id, id)));
+    await db.batch(ops as any);
     return c.json({ ok: true });
   } catch (err) {
     if (isForeignKeyViolation(err)) {

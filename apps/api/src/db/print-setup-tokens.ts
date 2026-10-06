@@ -9,8 +9,8 @@ async function main() {
   const conductor = firstOrThrow(await db.select().from(users).where(eq(users.phone, "+50588880001")));
   const solicitante = firstOrThrow(await db.select().from(users).where(eq(users.phone, "+50588880002")));
 
-  console.log(`conductor (navegador)         -> código: ${await signSetupToken(conductor.id)}`);
-  console.log(`cliente_solicitante (navegador) -> código: ${await signSetupToken(solicitante.id)}`);
+  console.log(`conductor (navegador)         -> código: ${await signSetupToken(conductor)}`);
+  console.log(`cliente_solicitante (navegador) -> código: ${await signSetupToken(solicitante)}`);
 }
 
 main()

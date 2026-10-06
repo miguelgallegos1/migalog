@@ -268,7 +268,7 @@ export default function Sites() {
       {deleteTarget && (
         <Modal title="Eliminar sitio" onClose={() => setDeleteTarget(null)}>
           <div className="flex flex-col items-center gap-3 text-center">
-            <span className="text-red-500"><AlertIcon className="h-10 w-10" /></span>
+            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-red-50 text-red-500 dark:bg-red-950/40 dark:text-red-400"><AlertIcon className="h-6 w-6" /></span>
             <p className="text-sm text-slate-700 dark:text-slate-300">
               ¿Eliminar <strong>{deleteTarget.name}</strong>? Esta acción no se puede deshacer.
             </p>

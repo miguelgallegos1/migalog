@@ -6,7 +6,7 @@ import { users, devices, clients, tenants } from "../db/schema.js";
 import { eq, and } from "drizzle-orm";
 import { hashSecret, verifySecret, randomToken } from "../lib/crypto.js";
 import { firstOrThrow } from "../lib/db-helpers.js";
-import { signAccessToken, signSetupToken, verifySetupToken } from "../lib/jwt.js";
+import { signAccessToken, signSetupToken, verifySetupToken, credentialFingerprint } from "../lib/jwt.js";
 import { requireAuth, requireRole, type AppVariables } from "../middleware/auth.js";
 
 const FAILED_ATTEMPTS_LIMIT = 5;
@@ -125,23 +125,44 @@ authRoutes.post(
       await db.insert(users).values(newUserValues as any).returning()
     );
 
-    const setupToken = await signSetupToken(user.id);
+    const setupToken = await signSetupToken(user);
     // En producción esto se envía por WhatsApp, no se devuelve en la respuesta.
     return c.json({ user, setupToken, setupMethod: usesPassword(body.role) ? "password" : "pin" });
   }
 );
 
-const setupPasswordSchema = z.object({ setupToken: z.string(), password: z.string().min(8) });
+/**
+ * Devuelve el usuario del link de setup, o null si el link no sirve: vencido, alterado, o ya
+ * usado (el credencial cambió desde que se firmó, ver credentialFingerprint en jwt.ts).
+ */
+async function userFromSetupToken(setupToken: string) {
+  let claims: { userId: string; cred: string };
+  try {
+    claims = await verifySetupToken(setupToken);
+  } catch {
+    return null;
+  }
+  const [user] = await db.select().from(users).where(eq(users.id, claims.userId));
+  if (!user || credentialFingerprint(user) !== claims.cred) return null;
+  return user;
+}
+
+const LINK_INVALID = "El link no es válido, ya se usó o venció. Pide uno nuevo a quien te invitó.";
+
+const setupPasswordSchema = z.object({
+  setupToken: z.string(),
+  password: z.string().min(8).regex(/[A-ZÁÉÍÓÚÑ]/).regex(/[a-záéíóúñ]/).regex(/\d/),
+});
 authRoutes.post("/setup-password", async (c) => {
   const { setupToken, password } = setupPasswordSchema.parse(await c.req.json());
-  const { userId } = await verifySetupToken(setupToken);
-  const [user] = await db.select().from(users).where(eq(users.id, userId));
-  if (!user || !usesPassword(user.role)) return c.json({ error: "Solicitud inválida" }, 400);
+  const user = await userFromSetupToken(setupToken);
+  if (!user) return c.json({ error: LINK_INVALID }, 400);
+  if (!usesPassword(user.role)) return c.json({ error: "Solicitud inválida" }, 400);
 
   const passwordHash = await hashSecret(password);
   // Variable, no literal directo en .set() (ver seed.ts para el detalle de por qué no se anota con typeof users.$inferInsert).
   const passwordValues = { passwordHash };
-  await db.update(users).set(passwordValues as any).where(eq(users.id, userId));
+  await db.update(users).set(passwordValues as any).where(eq(users.id, user.id));
   return c.json({ ok: true });
 });
 
@@ -152,9 +173,10 @@ const setupPinSchema = z.object({
 });
 authRoutes.post("/setup-pin", async (c) => {
   const { setupToken, pin, deviceLabel } = setupPinSchema.parse(await c.req.json());
-  const { userId } = await verifySetupToken(setupToken);
-  const [user] = await db.select().from(users).where(eq(users.id, userId));
-  if (!user || !usesPin(user.role)) return c.json({ error: "Solicitud inválida" }, 400);
+  const user = await userFromSetupToken(setupToken);
+  if (!user) return c.json({ error: LINK_INVALID }, 400);
+  if (!usesPin(user.role)) return c.json({ error: "Solicitud inválida" }, 400);
+  const userId = user.id;
 
   const pinHash = await hashSecret(pin);
   const pinValues = { pinHash };

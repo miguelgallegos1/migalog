@@ -117,7 +117,7 @@ driverRoutes.post("/", requireRole(...PROVIDER_MANAGE_ROLES, ...CLIENT_MANAGE_RO
   };
   const driver = firstOrThrow(await db.insert(drivers).values(newDriverValues as any).returning());
 
-  const setupToken = await signSetupToken(user.id);
+  const setupToken = await signSetupToken(user);
   return c.json({ user, driver, setupToken }, 201);
 });
 

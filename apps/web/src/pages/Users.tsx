@@ -3,6 +3,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "../lib/api";
 import { defaultDialCode } from "../lib/phone";
 import { PhoneInput } from "../components/PhoneInput";
+import { CopyBox } from "../components/CopyBox";
+import { setupLink } from "../lib/setupLink";
 import { Button } from "../components/Button";
 import { Input } from "../components/Input";
 import { Select } from "../components/Select";
@@ -216,14 +218,23 @@ export default function Users() {
       {modalOpen && (
         <Modal title={lastInvite ? "Invitación creada" : "Invitar usuario"} onClose={() => setModalOpen(false)}>
           {lastInvite ? (
-            <div className="flex flex-col items-center gap-3 text-center">
+            <div className="flex flex-col items-center gap-4 text-center">
               <span className="text-emerald-500"><CheckCircleIcon /></span>
-              <p className="text-sm text-slate-700 dark:text-slate-300">
-                Invitación creada ({lastInvite.setupMethod === "password" ? "setear contraseña" : "setear PIN"}). Link de configuración:
-              </p>
-              <div className="w-full break-all rounded-lg bg-slate-100 p-2 text-left text-xs font-mono text-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                {lastInvite.setupToken}
-              </div>
+              {lastInvite.setupMethod === "password" ? (
+                <>
+                  <p className="text-sm text-slate-600 dark:text-slate-400">
+                    Envía este link a la persona para que cree su contraseña. Vence en 24 horas.
+                  </p>
+                  <CopyBox caption="Link de invitación" value={setupLink(lastInvite.setupToken)} />
+                </>
+              ) : (
+                <>
+                  <p className="text-sm text-slate-600 dark:text-slate-400">
+                    Pídele que pegue este código en la pantalla de inicio, en "¿Es otro dispositivo? Configurar acceso". Vence en 24 horas.
+                  </p>
+                  <CopyBox caption="Código de invitación" value={lastInvite.setupToken} />
+                </>
+              )}
               <Button onClick={() => setModalOpen(false)} className="mt-1 flex items-center gap-1.5">
                 <CheckIcon /> Cerrar
               </Button>
@@ -314,7 +325,7 @@ export default function Users() {
       {deleteTarget && (
         <Modal title="Eliminar usuario" onClose={() => setDeleteTarget(null)}>
           <div className="flex flex-col items-center gap-3 text-center">
-            <span className="text-red-500"><AlertIcon className="h-10 w-10" /></span>
+            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-red-50 text-red-500 dark:bg-red-950/40 dark:text-red-400"><AlertIcon className="h-6 w-6" /></span>
             <p className="text-sm text-slate-700 dark:text-slate-300">
               ¿Eliminar a <strong>{deleteTarget.name}</strong>? Esta acción no se puede deshacer.
             </p>

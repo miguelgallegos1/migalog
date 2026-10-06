@@ -4,6 +4,8 @@ import { api, ApiError } from "../lib/api";
 import { defaultDialCode } from "../lib/phone";
 import { digitsOnly } from "../lib/number";
 import { PhoneInput } from "../components/PhoneInput";
+import { CopyBox } from "../components/CopyBox";
+import { setupLink } from "../lib/setupLink";
 import { Button } from "../components/Button";
 import { Input } from "../components/Input";
 import { Modal } from "../components/Modal";
@@ -213,14 +215,12 @@ export default function Clients() {
       {modalOpen && (
         <Modal title={lastSetupToken ? "Empresa cliente creada" : "Crear empresa cliente"} onClose={closeModal}>
           {lastSetupToken ? (
-            <div className="flex flex-col items-center gap-3 text-center">
+            <div className="flex flex-col items-center gap-4 text-center">
               <span className="text-emerald-500"><CheckCircleIcon /></span>
-              <p className="text-sm text-slate-700 dark:text-slate-300">
-                Empresa cliente creada. Link de invitación para que su administrador configure su contraseña:
+              <p className="text-sm text-slate-600 dark:text-slate-400">
+                Envía este link al administrador para que cree su contraseña. Vence en 24 horas.
               </p>
-              <div className="w-full break-all rounded-lg bg-slate-100 p-2 text-left text-xs font-mono text-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                {lastSetupToken}
-              </div>
+              <CopyBox caption="Link de invitación" value={setupLink(lastSetupToken)} />
               <Button onClick={closeModal} className="mt-1 flex items-center gap-1.5">
                 <CheckIcon /> Cerrar
               </Button>
@@ -286,7 +286,7 @@ export default function Clients() {
       {deleteTarget && (
         <Modal title="Eliminar empresa cliente" onClose={() => setDeleteTarget(null)}>
           <div className="flex flex-col items-center gap-3 text-center">
-            <span className="text-red-500"><AlertIcon className="h-10 w-10" /></span>
+            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-red-50 text-red-500 dark:bg-red-950/40 dark:text-red-400"><AlertIcon className="h-6 w-6" /></span>
             <p className="text-sm text-slate-700 dark:text-slate-300">
               ¿Eliminar <strong>{deleteTarget.name}</strong>? Esta acción no se puede deshacer.
             </p>

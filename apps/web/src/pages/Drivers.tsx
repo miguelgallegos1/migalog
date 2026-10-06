@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "../lib/api";
 import { defaultDialCode } from "../lib/phone";
 import { PhoneInput } from "../components/PhoneInput";
+import { CopyBox } from "../components/CopyBox";
 import { Button } from "../components/Button";
 import { Input } from "../components/Input";
 import { Select } from "../components/Select";
@@ -247,12 +248,12 @@ export default function Drivers() {
       {modalOpen && (
         <Modal title={lastCreated ? "Conductor creado" : "Agregar conductor"} onClose={() => setModalOpen(false)}>
           {lastCreated ? (
-            <div className="flex flex-col items-center gap-3 text-center">
+            <div className="flex flex-col items-center gap-4 text-center">
               <span className="text-emerald-500"><CheckCircleIcon /></span>
-              <p className="text-sm text-slate-700 dark:text-slate-300">Conductor creado (setear PIN). Link de configuración:</p>
-              <div className="w-full break-all rounded-lg bg-slate-100 p-2 text-left text-xs font-mono text-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                {lastCreated.setupToken}
-              </div>
+              <p className="text-sm text-slate-600 dark:text-slate-400">
+                Pídele al conductor que pegue este código en la app, en "¿Es otro dispositivo? Configurar acceso". Vence en 24 horas.
+              </p>
+              <CopyBox caption="Código de invitación" value={lastCreated.setupToken} />
               <Button onClick={() => setModalOpen(false)} className="mt-1 flex items-center gap-1.5">
                 <CheckIcon /> Cerrar
               </Button>
