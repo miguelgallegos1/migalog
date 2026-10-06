@@ -4,6 +4,8 @@ import { api, ApiError } from "../lib/api";
 import { defaultDialCode } from "../lib/phone";
 import { digitsOnly } from "../lib/number";
 import { PhoneInput } from "../components/PhoneInput";
+import { CopyBox } from "../components/CopyBox";
+import { setupLink } from "../lib/setupLink";
 import { Button } from "../components/Button";
 import { Input } from "../components/Input";
 import { Modal } from "../components/Modal";
@@ -212,14 +214,12 @@ export default function Tenants() {
       {modalOpen && (
         <Modal title={lastSetupToken ? "Empresa creada" : "Crear empresa proveedora"} onClose={closeModal}>
           {lastSetupToken ? (
-            <div className="flex flex-col items-center gap-3 text-center">
+            <div className="flex flex-col items-center gap-4 text-center">
               <span className="text-emerald-500"><CheckCircleIcon /></span>
-              <p className="text-sm text-slate-700 dark:text-slate-300">
-                Empresa creada. Link de invitación para que el administrador configure su contraseña:
+              <p className="text-sm text-slate-600 dark:text-slate-400">
+                Envía este link al administrador para que cree su contraseña. Vence en 24 horas.
               </p>
-              <div className="w-full break-all rounded-lg bg-slate-100 p-2 text-left text-xs font-mono text-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                {lastSetupToken}
-              </div>
+              <CopyBox caption="Link de invitación" value={setupLink(lastSetupToken)} />
               <Button onClick={closeModal} className="mt-1 flex items-center gap-1.5">
                 <CheckIcon /> Cerrar
               </Button>
