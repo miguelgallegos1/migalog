@@ -7,6 +7,8 @@ export default {
       colors: {
         brand: {
           50: "#f0f9ff",
+          100: "#e0f2fe",
+          200: "#bae6fd",
           // 300/400 son los tonos "vivos" para botones primarios: fondo saturado +
           // texto oscuro encima da mejor contraste real (~8:1) que un azul oscuro
           // con texto blanco, y además resalta mucho más.

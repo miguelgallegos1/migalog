@@ -158,7 +158,7 @@ function NavLinkItem({ item, onClick }: { item: NavItem; onClick: () => void }) 
         // (ver abajo) alcanzan para marcar selección, sin la línea recta pegada al borde.
         `flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm transition-all duration-150 hover:-translate-y-0.5 hover:shadow-sm ${
           isActive
-            ? "bg-brand-50 font-semibold text-brand-700 dark:bg-brand-500/15 dark:text-brand-300"
+            ? "bg-brand-100 font-semibold text-brand-700 dark:bg-brand-500/15 dark:text-brand-300"
             : "font-medium text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
         }`
       }
@@ -212,7 +212,7 @@ export function Layout() {
     // Alto fijo a la pantalla (no "min-h-screen") + overflow-hidden acá y en la fila de
     // abajo: así el scroll pasa a vivir DENTRO de <aside> (su <nav>) y de <main>, cada uno
     // por separado, en vez de que la página entera se desplace y se lleve el menú con ella.
-    <div className="flex h-screen flex-col overflow-hidden bg-slate-50 dark:bg-slate-950">
+    <div className="flex h-screen flex-col overflow-hidden bg-slate-100 dark:bg-slate-950">
       <Header onToggleMenu={() => setMenuOpen((v) => !v)} />
 
       <div className="relative flex flex-1 overflow-hidden">
@@ -221,7 +221,7 @@ export function Layout() {
         {menuOpen && <div className="absolute inset-0 z-30 bg-black/40 md:hidden" onClick={() => setMenuOpen(false)} />}
 
         <aside
-          className={`absolute inset-y-0 left-0 z-40 flex w-64 -translate-x-full transform flex-col border-r border-slate-200 bg-white p-4 transition-transform duration-200 dark:border-slate-800 dark:bg-slate-900 md:static md:z-auto md:translate-x-0 md:bg-white/60 md:dark:bg-slate-900/60 ${
+          className={`absolute inset-y-0 left-0 z-40 flex w-64 -translate-x-full transform flex-col border-r border-slate-200 bg-white p-4 transition-transform duration-200 dark:border-slate-800 dark:bg-slate-900 md:static md:z-auto md:translate-x-0 md:bg-white md:shadow-sm md:dark:bg-slate-900/60 ${
             menuOpen ? "translate-x-0" : ""
           }`}
         >
